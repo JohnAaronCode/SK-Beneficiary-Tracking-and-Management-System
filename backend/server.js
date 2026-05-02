@@ -38,6 +38,14 @@ app.post('/api/categories', async (req, res) => {
   } catch { res.status(400).json({ error: 'Category already exists' }); }
 });
 
+// ── DELETE CATEGORY ────────────────────────────────────────────────────────
+app.delete('/api/categories/:name', async (req, res) => {
+  try {
+    await run('DELETE FROM program_categories WHERE name = ?', [decodeURIComponent(req.params.name)]);
+    res.json({ message: 'Category deleted' });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 app.get('/api/users', async (req, res) => {
   res.json(await query('SELECT id, username, full_name, role, email, contact, barangay, created_at FROM users ORDER BY created_at DESC'));
 });
@@ -62,6 +70,61 @@ app.post('/api/users', async (req, res) => {
       return res.status(400).json({ error: 'Username already taken' });
     res.status(500).json({ error: e.message });
   }
+});
+
+// ── DELETE / EDIT USER ─────────────────────────────────────────────────────
+app.delete('/api/users/:id', async (req, res) => {
+  try {
+    const user = await query('SELECT role FROM users WHERE id = ?', [req.params.id]);
+    if (user[0]?.role === 'admin') {
+      const adminCount = await query("SELECT COUNT(*) as count FROM users WHERE role = 'admin'");
+      if (adminCount[0].count <= 1)
+        return res.status(400).json({ error: 'Cannot delete the last admin account' });
+    }
+    await run('DELETE FROM users WHERE id = ?', [req.params.id]);
+    res.json({ message: 'User deleted' });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/users/:id', async (req, res) => {
+  try {
+    const { full_name, role, password } = req.body;
+    if (password && password.length >= 6) {
+      const bcrypt = await import('bcryptjs');
+      const hash = await bcrypt.default.hash(password, 10);
+      await run('UPDATE users SET full_name=?, role=?, password=? WHERE id=?', [full_name, role, hash, req.params.id]);
+    } else {
+      await run('UPDATE users SET full_name=?, role=? WHERE id=?', [full_name, role, req.params.id]);
+    }
+    res.json({ message: 'User updated' });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── BARANGAY INFO ──────────────────────────────────────────────────────────
+app.get('/api/barangay-info', async (req, res) => {
+  try {
+    const rows = await query('SELECT * FROM barangay_info LIMIT 1');
+    res.json(rows[0] || {});
+  } catch { res.json({}); }
+});
+
+app.put('/api/barangay-info', async (req, res) => {
+  try {
+    const { barangay_name, sk_chairperson, contact, address, municipality } = req.body;
+    const existing = await query('SELECT id FROM barangay_info LIMIT 1');
+    if (existing.length > 0) {
+      await run(
+        'UPDATE barangay_info SET barangay_name=?, sk_chairperson=?, contact=?, address=?, municipality=? WHERE id=?',
+        [barangay_name, sk_chairperson, contact, address, municipality, existing[0].id]
+      );
+    } else {
+      await run(
+        'INSERT INTO barangay_info (barangay_name, sk_chairperson, contact, address, municipality) VALUES (?,?,?,?,?)',
+        [barangay_name, sk_chairperson, contact, address, municipality]
+      );
+    }
+    res.json({ message: 'Barangay information updated' });
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 app.get('/api/health', (_, res) => res.json({ status: 'OK', time: new Date().toISOString() }));

@@ -130,7 +130,7 @@
         <!-- User info -->
         {#if !collapsed}
           <div class="flex items-center gap-3 px-3 py-2 rounded-xl" style="background: rgba(255,255,255,0.08);">
-            <div class="w-7 h-7 rounded-full bg-blue-400 flex items-center justify-center text-xs font-bold text-white shrink-0">
+            <div class="w-7 h-7 rounded-full bg-[#0A1F44] flex items-center justify-center text-xs font-bold text-white shrink-0">
               {(($user as any).full_name ?? 'A').charAt(0)}
             </div>
             <div class="min-w-0 flex-1">
@@ -140,7 +140,7 @@
           </div>
         {:else}
           <div class="flex justify-center py-1">
-            <div class="w-7 h-7 rounded-full bg-blue-400 flex items-center justify-center text-xs font-bold text-white">
+            <div class="w-7 h-7 rounded-full bg-[#0A1F44] flex items-center justify-center text-xs font-bold text-white">
               {(($user as any).full_name ?? 'A').charAt(0)}
             </div>
           </div>

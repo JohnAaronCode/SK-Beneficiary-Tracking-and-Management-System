@@ -1,29 +1,27 @@
-<script>
+<script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { apiFetch, user } from '$lib/api.js';
   import {
     ArrowLeft, Inbox, Clock, CheckCircle2,
-    XCircle, ListOrdered, AlertCircle, Loader2, StickyNote
+    XCircle, ListOrdered, AlertCircle, StickyNote
   } from 'lucide-svelte';
 
-  /**
-   * @typedef {{
-   *   id: number,
-   *   program_title: string,
-   *   program_category: string,
-   *   full_name: string,
-   *   age: number,
-   *   contact: string,
-   *   barangay: string | null,
-   *   status: 'pending' | 'approved' | 'rejected' | 'waitlist',
-   *   notes: string | null,
-   *   created_at: string
-   * }} Application
-   */
+  type AppStatus = 'pending' | 'approved' | 'rejected' | 'waitlist';
 
-  /** @type {Application[]} */
-  let applications = $state([]);
+  interface Application {
+    program_title: string;
+    program_category: string;
+    full_name: string;
+    age: number;
+    contact: string;
+    barangay: string;
+    created_at: string;
+    notes?: string;
+    status: AppStatus;
+  }
+
+  let applications = $state<Application[]>([]);
   let loading = $state(true);
   let error = $state('');
 
@@ -38,16 +36,14 @@
     }
   });
 
-  /** @type {Record<Application['status'], string>} */
-  const statusBadge = {
-    pending:  'bg-amber-100 text-amber-700 border border-amber-200',
-    approved: 'bg-emerald-100 text-emerald-700 border border-emerald-200',
-    rejected: 'bg-red-100 text-red-700 border border-red-200',
+  const statusBadge: Record<AppStatus, string> = {
+    pending:  'bg-amber-50 text-amber-700 border border-amber-200',
+    approved: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
+    rejected: 'bg-red-50 text-red-700 border border-red-200',
     waitlist: 'bg-slate-100 text-slate-600 border border-slate-200'
   };
 
-  /** @type {Record<Application['status'], string>} */
-  const statusLabel = {
+  const statusLabel: Record<AppStatus, string> = {
     pending:  'Hinihintay ang review',
     approved: 'Ikaw ay isang beneficiary!',
     rejected: 'Hindi natanggap',
@@ -70,7 +66,8 @@
 
   {#if loading}
     <div class="flex items-center justify-center gap-2 text-slate-400 text-sm py-16">
-      <Loader2 class="w-5 h-5 animate-spin" />
+      <div class="w-5 h-5 border-2 border-slate-200 rounded-full animate-spin"
+        style="border-top-color: #0A1F44;"></div>
       Loading...
     </div>
 
@@ -86,7 +83,10 @@
       <p class="text-slate-500 font-medium">Wala ka pang applications</p>
       <p class="text-slate-400 text-sm mt-1 mb-5">Mag-apply ka sa isang available na program!</p>
       <a href="/"
-        class="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-5 py-2.5 rounded-lg transition">
+        class="inline-flex items-center gap-2 text-sm font-medium px-5 py-2.5 rounded-lg transition text-white"
+        style="background: #0A1F44;"
+        onmouseenter={e => (e.currentTarget as HTMLElement).style.background = '#0d2756'}
+        onmouseleave={e => (e.currentTarget as HTMLElement).style.background = '#0A1F44'}>
         Tingnan ang mga Programs
       </a>
     </div>

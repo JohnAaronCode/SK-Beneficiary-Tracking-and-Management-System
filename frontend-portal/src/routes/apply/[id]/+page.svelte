@@ -1,6 +1,6 @@
-<script>
+<script lang="ts">
   import { onMount } from 'svelte';
-  import { page } from '$app/stores';
+  import { page } from '$app/state';
   import { goto } from '$app/navigation';
   import { apiFetch, user } from '$lib/api.js';
   import {
@@ -8,18 +8,14 @@
     CheckCircle2, AlertCircle, Loader2
   } from 'lucide-svelte';
 
-  /**
-   * @typedef {{
-   *   id: number,
-   *   title: string,
-   *   category: string,
-   *   slots: number,
-   *   slots_used: number
-   * }} Program
-   */
+  interface Program {
+    title: string;
+    category: string;
+    slots: number;
+    slots_used: number;
+  }
 
-  /** @type {Program | null} */
-  let program = $state(null);
+  let program = $state<Program | null>(null);
   let loading = $state(true);
   let submitting = $state(false);
   let error = $state('');
@@ -37,8 +33,7 @@
   onMount(async () => {
     if (!$user) { goto('/login'); return; }
     try {
-      program = await apiFetch(`/programs/${$page.params.id}`);
-      // Pre-fill from user data
+      program = await apiFetch(`/programs/${page.params.id}`);
       form.full_name = $user?.full_name ?? '';
     } catch (e) {
       error = e instanceof Error ? e.message : 'Error';
@@ -54,7 +49,7 @@
       await apiFetch('/applications', {
         method: 'POST',
         body: {
-          program_id: $page.params.id,
+          program_id: page.params.id,
           full_name: form.full_name,
           address: form.address,
           age: parseInt(form.age),
@@ -75,7 +70,8 @@
 <div class="max-w-lg mx-auto">
   {#if loading}
     <div class="flex items-center justify-center gap-2 text-slate-400 text-sm py-16">
-      <Loader2 class="w-5 h-5 animate-spin" />
+      <div class="w-5 h-5 border-2 border-slate-200 rounded-full animate-spin"
+        style="border-top-color: #0A1F44;"></div>
       Loading...
     </div>
 
@@ -92,7 +88,10 @@
       </p>
       <div class="flex gap-3 justify-center">
         <a href="/my-applications"
-          class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-5 py-2.5 rounded-lg transition">
+          class="text-sm font-medium px-5 py-2.5 rounded-lg transition text-white"
+          style="background: #0A1F44;"
+          onmouseenter={e => (e.currentTarget as HTMLElement).style.background = '#0d2756'}
+          onmouseleave={e => (e.currentTarget as HTMLElement).style.background = '#0A1F44'}>
           Tingnan ang Applications
         </a>
         <a href="/"
@@ -103,17 +102,19 @@
     </div>
 
   {:else}
-    <!-- Program Info -->
+    <!-- Program Info Banner -->
     {#if program}
-      <div class="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-5">
+      <div class="rounded-xl p-4 mb-5 border"
+        style="background: rgba(10,31,68,0.05); border-color: rgba(10,31,68,0.15);">
         <div class="flex items-start gap-3">
-          <div class="bg-blue-100 rounded-lg p-2 shrink-0">
-            <ClipboardList class="w-5 h-5 text-blue-600" />
+          <div class="rounded-lg p-2 shrink-0"
+            style="background: rgba(10,31,68,0.10); color: #0A1F44;">
+            <ClipboardList class="w-5 h-5" />
           </div>
           <div>
-            <h2 class="font-bold text-blue-900">{program.title}</h2>
-            <p class="text-blue-700 text-sm">{program.category}</p>
-            <p class="text-blue-600 text-xs mt-1 flex items-center gap-1">
+            <h2 class="font-bold" style="color: #0A1F44;">{program.title}</h2>
+            <p class="text-sm" style="color: rgba(10,31,68,0.70);">{program.category}</p>
+            <p class="text-xs mt-1 flex items-center gap-1" style="color: rgba(10,31,68,0.55);">
               <Users class="w-3.5 h-3.5" />
               {program.slots - program.slots_used} slots natitira sa {program.slots} total
             </p>
@@ -128,45 +129,38 @@
 
       <form onsubmit={(e) => { e.preventDefault(); submitApplication(); }} class="space-y-4">
         <div>
-          <label class="block text-xs font-semibold text-slate-600 mb-1.5" for="fn">Buong Pangalan *</label>
-          <input id="fn" bind:value={form.full_name}
-            class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-slate-400"
-            required placeholder="Juan Dela Cruz" />
+          <label class="label" for="fn">Buong Pangalan *</label>
+          <input id="fn" bind:value={form.full_name} class="input" required placeholder="Juan Dela Cruz" />
         </div>
 
         <div class="grid grid-cols-2 gap-3">
           <div>
-            <label class="block text-xs font-semibold text-slate-600 mb-1.5" for="age">Edad *</label>
-            <input id="age" bind:value={form.age} type="number"
-              class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-slate-400"
+            <label class="label" for="age">Edad *</label>
+            <input id="age" bind:value={form.age} type="number" class="input"
               required placeholder="18" min="1" max="30" />
           </div>
           <div>
-            <label class="block text-xs font-semibold text-slate-600 mb-1.5" for="contact">Contact Number *</label>
-            <input id="contact" bind:value={form.contact}
-              class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-slate-400"
+            <label class="label" for="contact">Contact Number *</label>
+            <input id="contact" bind:value={form.contact} class="input"
               required placeholder="09XXXXXXXXX" />
           </div>
         </div>
 
         <div>
-          <label class="block text-xs font-semibold text-slate-600 mb-1.5" for="barangay">Barangay *</label>
-          <input id="barangay" bind:value={form.barangay}
-            class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-slate-400"
+          <label class="label" for="barangay">Barangay *</label>
+          <input id="barangay" bind:value={form.barangay} class="input"
             required placeholder="Barangay mo" />
         </div>
 
         <div>
-          <label class="block text-xs font-semibold text-slate-600 mb-1.5" for="address">Kumpletong Address *</label>
-          <input id="address" bind:value={form.address}
-            class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-slate-400"
+          <label class="label" for="address">Kumpletong Address *</label>
+          <input id="address" bind:value={form.address} class="input"
             required placeholder="Blk/Lot, Street, Barangay, Lungsod" />
         </div>
 
         <div>
-          <label class="block text-xs font-semibold text-slate-600 mb-1.5" for="req">Mga Sinubmit na Requirements</label>
-          <textarea id="req" bind:value={form.requirements_submitted}
-            class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-slate-400 h-20 resize-none"
+          <label class="label" for="req">Mga Sinubmit na Requirements</label>
+          <textarea id="req" bind:value={form.requirements_submitted} class="input h-20 resize-none"
             placeholder="e.g. Photocopy ng report card, Barangay certificate..."></textarea>
         </div>
 
@@ -179,7 +173,10 @@
 
         <div class="flex gap-3 pt-1">
           <button type="submit"
-            class="flex-1 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed text-white text-sm font-medium py-2.5 rounded-lg transition"
+            class="flex-1 flex items-center justify-center gap-2 text-sm font-medium py-2.5 rounded-lg transition text-white disabled:opacity-60 disabled:cursor-not-allowed"
+            style="background: #0A1F44;"
+            onmouseenter={e => { if (!(e.currentTarget as HTMLButtonElement).disabled) (e.currentTarget as HTMLElement).style.background = '#0d2756'; }}
+            onmouseleave={e => (e.currentTarget as HTMLElement).style.background = '#0A1F44'}
             disabled={submitting}>
             {#if submitting}
               <Loader2 class="w-4 h-4 animate-spin" />

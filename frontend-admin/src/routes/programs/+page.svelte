@@ -11,20 +11,36 @@
   import ListChecks from 'lucide-svelte/icons/list-checks';
   import AlignLeft from 'lucide-svelte/icons/align-left';
   import Hash from 'lucide-svelte/icons/hash';
+  import ToggleLeft from 'lucide-svelte/icons/toggle-left';
+  import ToggleRight from 'lucide-svelte/icons/toggle-right';
+  import ClipboardList from 'lucide-svelte/icons/clipboard-list';
+  import FolderOpen from 'lucide-svelte/icons/folder-open';
 
   type ProgramStatus = 'open' | 'closed' | 'draft' | 'completed';
 
   interface Program {
     id: string | number;
-    title: string; description: string; category: string;
-    slots: number; slots_used: number; pending_count: number;
-    approved_count: number; status: ProgramStatus;
-    requirements: string; start_date: string; end_date: string;
+    title: string;
+    description: string;
+    category: string;
+    slots: number;
+    slots_used: number;
+    pending_count: number;
+    approved_count: number;
+    status: ProgramStatus;
+    requirements: string;
+    start_date: string;
+    end_date: string;
   }
   interface Category { name: string; }
   interface FormData {
-    title: string; description: string; category: string; slots: string;
-    requirements: string; start_date: string; end_date: string;
+    title: string;
+    description: string;
+    category: string;
+    slots: string;
+    requirements: string;
+    start_date: string;
+    end_date: string;
   }
 
   let programs = $state<Program[]>([]);
@@ -35,53 +51,83 @@
   let selectedProgram = $state<Program | null>(null);
   let error = $state('');
   let success = $state('');
-  let form = $state<FormData>({ title: '', description: '', category: '', slots: '', requirements: '', start_date: '', end_date: '' });
+  let form = $state<FormData>({
+    title: '', description: '', category: '', slots: '',
+    requirements: '', start_date: '', end_date: '',
+  });
 
+  // Load programs and categories on mount
   onMount(async () => { await loadData(); });
 
   async function loadData() {
     loading = true;
     try {
-      [programs, categories] = await Promise.all([apiFetch('/programs'), apiFetch('/categories')]);
-    } catch (e) { error = e instanceof Error ? e.message : 'Error'; }
-    finally { loading = false; }
+      [programs, categories] = await Promise.all([
+        apiFetch('/programs'),
+        apiFetch('/categories'),
+      ]);
+    } catch (e) {
+      error = e instanceof Error ? e.message : 'Failed to load data';
+    } finally {
+      loading = false;
+    }
   }
 
+  // Open the form in create mode with blank fields
   function openCreate() {
     form = { title: '', description: '', category: '', slots: '', requirements: '', start_date: '', end_date: '' };
-    editMode = false; showForm = true;
+    editMode = false;
+    showForm = true;
   }
 
+  // Open the form in edit mode pre-filled with the selected program's data
   function openEdit(p: Program) {
     form = { ...p, slots: String(p.slots) };
-    editMode = true; selectedProgram = p; showForm = true;
+    editMode = true;
+    selectedProgram = p;
+    showForm = true;
   }
 
+  // Create or update a program depending on editMode
   async function submitForm() {
     try {
       if (editMode && selectedProgram != null) {
         await apiFetch(`/programs/${selectedProgram.id}`, { method: 'PUT', body: form });
-        success = 'Program updated!';
+        success = 'Program updated successfully.';
       } else {
         await apiFetch('/programs', { method: 'POST', body: form });
-        success = 'Program created!';
+        success = 'Program created successfully.';
       }
-      showForm = false; await loadData();
+      showForm = false;
+      await loadData();
       setTimeout(() => success = '', 3000);
-    } catch (e) { error = e instanceof Error ? e.message : 'Error'; }
+    } catch (e) {
+      error = e instanceof Error ? e.message : 'Failed to save program';
+    }
   }
 
+  // Update a program's status (open / closed / completed / draft)
   async function setStatus(id: string | number, status: string) {
-    try { await apiFetch(`/programs/${id}/status`, { method: 'PATCH', body: { status } }); await loadData(); }
-    catch (e) { error = e instanceof Error ? e.message : 'Error'; }
+    try {
+      await apiFetch(`/programs/${id}/status`, { method: 'PATCH', body: { status } });
+      await loadData();
+    } catch (e) {
+      error = e instanceof Error ? e.message : 'Failed to update status';
+    }
   }
 
+  // Delete a program after confirmation
   async function deleteProgram(id: string | number) {
-    if (!confirm('Are you sure you want to delete this program?')) return;
-    try { await apiFetch(`/programs/${id}`, { method: 'DELETE' }); await loadData(); }
-    catch (e) { error = e instanceof Error ? e.message : 'Error'; }
+    if (!confirm('Are you sure you want to delete this program? This cannot be undone.')) return;
+    try {
+      await apiFetch(`/programs/${id}`, { method: 'DELETE' });
+      await loadData();
+    } catch (e) {
+      error = e instanceof Error ? e.message : 'Failed to delete program';
+    }
   }
 
+  // Badge styles per program status
   const statusConfig: Record<ProgramStatus, { label: string; classes: string }> = {
     open:      { label: 'Open',      classes: 'bg-emerald-100 text-emerald-700 border border-emerald-200' },
     closed:    { label: 'Closed',    classes: 'bg-slate-100 text-slate-500 border border-slate-200' },
@@ -92,7 +138,7 @@
 
 <div class="p-6 space-y-5">
 
-  <!-- Header -->
+  <!-- Page Header -->
   <div class="flex items-center justify-between">
     <div>
       <h1 class="text-2xl font-bold text-gray-900">Programs</h1>
@@ -107,7 +153,7 @@
     </button>
   </div>
 
-  <!-- Alerts -->
+  <!-- Alert Messages -->
   {#if error}
     <div class="bg-red-50 border border-red-200 text-red-700 p-3 rounded-xl text-sm">{error}</div>
   {/if}
@@ -115,7 +161,7 @@
     <div class="bg-emerald-50 border border-emerald-200 text-emerald-700 p-3 rounded-xl text-sm">{success}</div>
   {/if}
 
-  <!-- Modal -->
+  <!-- ── CREATE / EDIT MODAL ─────────────────────────────────────────────── -->
   {#if showForm}
     <div class="fixed inset-0 z-50 flex items-center justify-center p-4" style="background: rgba(10,31,68,0.5);">
       <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
@@ -123,8 +169,12 @@
         <!-- Modal Header -->
         <div class="flex items-center justify-between px-6 py-5 border-b border-slate-100">
           <div>
-            <h2 class="text-base font-bold text-slate-900">{editMode ? 'Edit Program' : 'New Program'}</h2>
-            <p class="text-xs text-slate-400 mt-0.5">{editMode ? 'Update program details' : 'Fill in the details to create a new program'}</p>
+            <h2 class="text-base font-bold text-slate-900">
+              {editMode ? 'Edit Program' : 'New Program'}
+            </h2>
+            <p class="text-xs text-slate-400 mt-0.5">
+              {editMode ? 'Update the program details below' : 'Fill in the details to create a new program'}
+            </p>
           </div>
           <button
             onclick={() => showForm = false}
@@ -134,7 +184,7 @@
           </button>
         </div>
 
-        <!-- Modal Body -->
+        <!-- Modal Form -->
         <form onsubmit={(e) => { e.preventDefault(); submitForm(); }} class="px-6 py-5 space-y-4">
 
           <!-- Program Title -->
@@ -169,7 +219,7 @@
             </select>
           </div>
 
-          <!-- Slots -->
+          <!-- Number of Slots -->
           <div class="space-y-1.5">
             <label class="flex items-center gap-1.5 text-xs font-semibold text-slate-600 uppercase tracking-wide" for="slots">
               <Users size={11} /> Number of Slots <span class="text-red-400">*</span>
@@ -207,13 +257,13 @@
             <textarea
               id="req"
               bind:value={form.requirements}
-              placeholder="List of requirements..."
+              placeholder="List of requirements for applicants..."
               rows="3"
               class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-800 placeholder:text-slate-300 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50 transition bg-slate-50 resize-none"
             ></textarea>
           </div>
 
-          <!-- Dates -->
+          <!-- Date Range -->
           <div class="grid grid-cols-2 gap-3">
             <div class="space-y-1.5">
               <label class="flex items-center gap-1.5 text-xs font-semibold text-slate-600 uppercase tracking-wide" for="start">
@@ -239,7 +289,7 @@
             </div>
           </div>
 
-          <!-- Actions -->
+          <!-- Form Actions -->
           <div class="flex gap-2 pt-1">
             <button
               type="submit"
@@ -256,22 +306,26 @@
               Cancel
             </button>
           </div>
+
         </form>
       </div>
     </div>
   {/if}
 
-  <!-- Program List -->
+  <!-- ── PROGRAM LIST ─────────────────────────────────────────────────────── -->
   {#if loading}
     <div class="flex items-center gap-2 text-slate-400 text-sm py-12">
       <div class="w-4 h-4 border-2 border-slate-200 border-t-blue-500 rounded-full animate-spin"></div>
       Loading programs...
     </div>
+
   {:else if programs.length === 0}
     <div class="bg-white border border-slate-200 rounded-2xl text-center py-16 shadow-sm">
+      <FolderOpen size={36} class="mx-auto mb-3 text-slate-300" />
       <p class="text-slate-400 font-medium text-sm">No programs yet.</p>
       <p class="text-slate-300 text-xs mt-1">Click "New Program" to get started.</p>
     </div>
+
   {:else}
     <div class="grid gap-3">
       {#each programs as p}
@@ -279,14 +333,15 @@
         <div class="bg-white border border-slate-200 rounded-2xl px-5 py-4 hover:shadow-md hover:border-slate-300 transition-all">
           <div class="flex items-start justify-between gap-4">
 
-            <!-- Left: Info -->
+            <!-- Program Info -->
             <div class="flex-1 min-w-0">
               <div class="flex items-center gap-2 flex-wrap mb-1">
                 <h3 class="font-semibold text-slate-900 text-sm">{p.title}</h3>
                 <span class="text-[11px] font-medium px-2 py-0.5 rounded-full {cfg.classes}">{cfg.label}</span>
                 <span class="text-[11px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full border border-slate-200">{p.category}</span>
               </div>
-              <p class="text-slate-400 text-xs mb-3 truncate">{p.description || 'No description'}</p>
+              <p class="text-slate-400 text-xs mb-3 truncate">{p.description || 'No description provided'}</p>
+              <!-- Slot and application summary -->
               <div class="flex gap-4 text-xs">
                 <span class="text-slate-400">Slots: <strong class="text-slate-700">{p.slots_used}/{p.slots}</strong></span>
                 <span class="text-slate-400">Pending: <strong class="text-amber-600">{p.pending_count}</strong></span>
@@ -294,47 +349,56 @@
               </div>
             </div>
 
-            <!-- Right: Actions -->
+            <!-- Program Actions -->
             <div class="flex gap-1.5 shrink-0 flex-wrap justify-end items-center">
+
+              <!-- Toggle open/closed based on current status -->
               {#if p.status === 'draft' || p.status === 'closed'}
                 <button
                   onclick={() => setStatus(p.id, 'open')}
-                  class="px-3 py-1.5 rounded-lg text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 transition"
+                  class="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 transition"
                 >
-                  Open
+                  <ToggleLeft size={13} /> Open
                 </button>
               {/if}
               {#if p.status === 'open'}
                 <button
                   onclick={() => setStatus(p.id, 'closed')}
-                  class="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 bg-slate-50 border border-slate-200 hover:bg-slate-100 transition"
+                  class="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 bg-slate-50 border border-slate-200 hover:bg-slate-100 transition"
                 >
-                  Close
+                  <ToggleRight size={13} /> Close
                 </button>
               {/if}
+
+              <!-- View applicants for this program -->
               <a
                 href="/applications?program={p.id}"
                 class="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-600 bg-slate-50 border border-slate-200 hover:bg-slate-100 transition"
               >
-                <Users size={12} /> Applicants
+                <ClipboardList size={12} /> Applicants
               </a>
+
+              <!-- Edit program -->
               <button
                 onclick={() => openEdit(p)}
                 class="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-blue-600 bg-blue-50 border border-blue-200 hover:bg-blue-100 transition"
               >
                 <Pencil size={12} /> Edit
               </button>
+
+              <!-- Delete program -->
               <button
                 onclick={() => deleteProgram(p.id)}
                 class="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-red-600 bg-red-50 border border-red-200 hover:bg-red-100 transition"
               >
                 <Trash2 size={12} /> Delete
               </button>
-            </div>
 
+            </div>
           </div>
         </div>
       {/each}
     </div>
   {/if}
+
 </div>

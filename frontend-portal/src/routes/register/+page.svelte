@@ -41,14 +41,20 @@
 <div class="max-w-lg mx-auto mt-8">
   <div class="card">
     <div class="text-center mb-6">
-      <div class="text-4xl mb-2">📝</div>
+      <div class="w-14 h-14 rounded-2xl flex items-center justify-center text-white text-2xl mx-auto mb-3 shadow"
+        style="background: #0A1F44;">
+        📝
+      </div>
       <h1 class="text-xl font-bold text-gray-900">Mag-register</h1>
       <p class="text-gray-500 text-sm">Gumawa ng account para makapag-apply sa mga SK programs</p>
     </div>
 
     <form onsubmit={(e) => { e.preventDefault(); handleRegister(); }} class="space-y-4">
-      <div class="bg-blue-50 rounded-lg p-3 text-xs text-blue-700">
-        📋 <strong>Personal Information</strong>
+
+      <!-- Section label -->
+      <div class="rounded-lg p-3 text-xs font-semibold"
+        style="background: rgba(10,31,68,0.06); color: #0A1F44;">
+        Personal Information
       </div>
 
       <div>
@@ -72,8 +78,9 @@
         <input id="address" bind:value={form.address} class="input" placeholder="Kumpletong address" required />
       </div>
 
-      <div class="bg-blue-50 rounded-lg p-3 text-xs text-blue-700 mt-4">
-        🔐 <strong>Account Information</strong>
+      <div class="rounded-lg p-3 text-xs font-semibold mt-4"
+        style="background: rgba(10,31,68,0.06); color: #0A1F44;">
+        Account Information
       </div>
 
       <div>
@@ -96,14 +103,18 @@
         <div class="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-2">{error}</div>
       {/if}
 
-      <button type="submit" class="btn-primary w-full py-2.5 text-base" disabled={loading}>
+      <button type="submit"
+        class="btn-primary w-full py-2.5 text-base"
+        disabled={loading}>
         {loading ? 'Nagre-register...' : '✅ Mag-register'}
       </button>
     </form>
 
     <p class="text-center text-sm text-gray-500 mt-4">
       May account na?
-      <a href="/login" class="text-blue-600 hover:underline font-medium">Login dito</a>
+      <a href="/login" class="font-medium hover:underline" style="color: #0A1F44;">
+        Login dito
+      </a>
     </p>
   </div>
 </div>

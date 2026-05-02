@@ -104,6 +104,17 @@ export async function initDatabase() {
     FOREIGN KEY (program_id) REFERENCES programs(id) ON DELETE CASCADE
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
 
+  // ── NEW TABLES ─────────────────────────────────────────────────────────────
+  await pool.execute(`CREATE TABLE IF NOT EXISTS barangay_info (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    barangay_name VARCHAR(200),
+    sk_chairperson VARCHAR(200),
+    contact VARCHAR(50),
+    address TEXT,
+    municipality VARCHAR(200),
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+
   const admin = await queryOne('SELECT id FROM users WHERE role = ?', ['admin']);
   if (!admin) {
     const hash = await bcrypt.hash('admin123', 10);

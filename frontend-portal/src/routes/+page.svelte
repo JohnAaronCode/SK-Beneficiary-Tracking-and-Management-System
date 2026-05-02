@@ -3,21 +3,8 @@
   import { apiFetch } from '$lib/api.js';
   import { user } from '$lib/api.js';
   import {
-    ArrowLeft,
-    Inbox,
-    Clock,
-    CircleCheck,
-    CircleX,
-    ListOrdered,
-    CircleAlert,
-    Loader,
-    StickyNote,
-    Clipboard,
-    UserPlus,
-    LogIn,
-    Users,
-    CalendarDays,
-    ChevronRight
+    Inbox, CircleCheck, CircleAlert,
+    UserPlus, LogIn, Users, CalendarDays, ChevronRight, Clipboard
   } from 'lucide-svelte';
 
   /**
@@ -51,25 +38,28 @@
 
 <div class="space-y-6">
   <!-- Hero -->
-  <div class="bg-linear-to-br from-blue-900 via-blue-800 to-blue-700 text-white rounded-2xl p-8 text-center shadow-lg">
+  <div class="text-white rounded-2xl p-8 text-center shadow-lg"
+    style="background: linear-gradient(135deg, #0A1F44 0%, #0d2756 60%, #162d5e 100%);">
     <div class="flex justify-center mb-3">
-      <div class="bg-white/10 rounded-2xl p-3">
-        <Clipboard class="w-10 h-10 text-blue-100" />
+      <div class="rounded-2xl p-3" style="background: rgba(255,255,255,0.10);">
+        <Clipboard class="w-10 h-10" style="color: rgba(255,255,255,0.85);" />
       </div>
     </div>
     <h1 class="text-2xl font-bold mb-2 tracking-tight">SK Beneficiary Programs</h1>
-    <p class="text-blue-200 text-sm max-w-sm mx-auto">
+    <p class="text-sm max-w-sm mx-auto" style="color: rgba(255,255,255,0.65);">
       Mag-apply sa mga available na programs ng inyong Sangguniang Kabataan
     </p>
     {#if !$user}
       <div class="mt-5 flex gap-3 justify-center">
         <a href="/register"
-          class="flex items-center gap-2 bg-white text-blue-900 font-semibold px-5 py-2 rounded-lg hover:bg-blue-50 transition text-sm shadow">
+          class="flex items-center gap-2 font-semibold px-5 py-2 rounded-lg transition text-sm shadow"
+          style="background: white; color: #0A1F44;">
           <UserPlus class="w-4 h-4" />
           Mag-register
         </a>
         <a href="/login"
-          class="flex items-center gap-2 bg-blue-700/60 text-white px-5 py-2 rounded-lg hover:bg-blue-700 transition text-sm border border-blue-500/50">
+          class="flex items-center gap-2 px-5 py-2 rounded-lg transition text-sm text-white border"
+          style="background: rgba(255,255,255,0.10); border-color: rgba(255,255,255,0.25);">
           <LogIn class="w-4 h-4" />
           Login
         </a>
@@ -83,7 +73,8 @@
 
     {#if loading}
       <div class="flex items-center justify-center gap-2 text-slate-400 text-sm py-16">
-        <div class="w-5 h-5 border-2 border-slate-300 border-t-blue-500 rounded-full animate-spin"></div>
+        <div class="w-5 h-5 border-2 border-slate-300 rounded-full animate-spin"
+          style="border-top-color: #0A1F44;"></div>
         Loading programs...
       </div>
     {:else if error}
@@ -100,12 +91,13 @@
     {:else}
       <div class="grid gap-4">
         {#each programs as program}
-          <div class="bg-white border border-slate-200 rounded-2xl p-5 hover:shadow-md hover:border-blue-200 transition-all">
+          <div class="bg-white border border-slate-200 rounded-2xl p-5 hover:shadow-md transition-all"
+            style="hover:border-color: #0A1F44;">
             <div class="flex items-start justify-between gap-4">
               <div class="flex-1 min-w-0">
                 <div class="flex items-center gap-2 flex-wrap mb-1">
                   <h3 class="font-semibold text-slate-900">{program.title}</h3>
-                  <span class="inline-flex items-center gap-1 text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-medium">
+                  <span class="inline-flex items-center gap-1 text-xs bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full font-medium border border-emerald-200">
                     <CircleCheck class="w-3 h-3" /> OPEN
                   </span>
                   <span class="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">{program.category}</span>
@@ -136,13 +128,19 @@
                     <span class="text-xs text-slate-400 bg-slate-100 px-3 py-2 rounded-lg block text-center">Puno na</span>
                   {:else}
                     <a href="/apply/{program.id}"
-                      class="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition whitespace-nowrap">
+                      class="flex items-center gap-1.5 text-sm font-medium px-4 py-2 rounded-lg transition text-white whitespace-nowrap"
+                      style="background: #0A1F44;"
+                      onmouseenter={e => e.currentTarget.style.background = '#0d2756'}
+                      onmouseleave={e => e.currentTarget.style.background = '#0A1F44'}>
                       Mag-apply <ChevronRight class="w-4 h-4" />
                     </a>
                   {/if}
                 {:else}
                   <a href="/login"
-                    class="flex items-center gap-1.5 text-blue-700 hover:text-blue-800 border border-blue-200 hover:border-blue-400 bg-blue-50 text-sm px-4 py-2 rounded-lg transition whitespace-nowrap">
+                    class="flex items-center gap-1.5 text-sm px-4 py-2 rounded-lg transition whitespace-nowrap border font-medium"
+                    style="color: #0A1F44; border-color: rgba(10,31,68,0.25); background: rgba(10,31,68,0.05);"
+                    onmouseenter={e => e.currentTarget.style.background = 'rgba(10,31,68,0.10)'}
+                    onmouseleave={e => e.currentTarget.style.background = 'rgba(10,31,68,0.05)'}>
                     <LogIn class="w-4 h-4" />
                     Login
                   </a>

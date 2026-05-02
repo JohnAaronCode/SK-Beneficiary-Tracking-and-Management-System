@@ -4,56 +4,101 @@ import { authenticate, requireAdmin } from '../middleware/auth.js';
 
 const router = Router();
 
+// ── GET ALL BENEFICIARIES ──────────────────────────────────────────────────
 router.get('/', authenticate, requireAdmin, async (req, res) => {
   try {
     const { program_id, search } = req.query;
-    let sql = `SELECT b.*, p.title as program_title, p.category FROM beneficiaries b
-      LEFT JOIN programs p ON b.program_id = p.id WHERE 1=1`;
+
+    let sql = `
+      SELECT b.*, p.title AS program_title, p.category
+      FROM beneficiaries b
+      LEFT JOIN programs p ON b.program_id = p.id
+      WHERE 1=1
+    `;
     const params = [];
-    if (program_id) { sql += ' AND b.program_id = ?'; params.push(program_id); }
-    if (search) { sql += ' AND (b.full_name LIKE ? OR b.address LIKE ?)'; params.push(`%${search}%`, `%${search}%`); }
+
+    if (program_id) {
+      sql += ' AND b.program_id = ?';
+      params.push(program_id);
+    }
+    if (search) {
+      sql += ' AND (b.full_name LIKE ? OR b.address LIKE ?)';
+      params.push(`%${search}%`, `%${search}%`);
+    }
+
     sql += ' ORDER BY b.received_at DESC';
+
     res.json(await query(sql, params));
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
+// ── SEARCH PERSON BENEFIT HISTORY ─────────────────────────────────────────
 router.get('/search', authenticate, requireAdmin, async (req, res) => {
   try {
     const { name } = req.query;
-    if (!name) return res.status(400).json({ error: 'Search name required' });
+    if (!name) return res.status(400).json({ error: 'Search name is required' });
+
     const results = await query(`
-      SELECT b.full_name, b.address, b.contact, b.received_at,
-        p.title as program_title, p.category, p.start_date, p.end_date,
-        a.age, a.barangay, a.status as application_status
+      SELECT
+        b.full_name, b.address, b.contact, b.received_at,
+        p.title AS program_title, p.category, p.start_date, p.end_date,
+        a.age, a.barangay, a.status AS application_status
       FROM beneficiaries b
       LEFT JOIN programs p ON b.program_id = p.id
       LEFT JOIN applications a ON b.application_id = a.id
       WHERE b.full_name LIKE ?
       ORDER BY b.received_at DESC
     `, [`%${name}%`]);
+
     res.json(results);
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
+// ── REPORTS SUMMARY ───────────────────────────────────────────────────────
 router.get('/reports/summary', authenticate, requireAdmin, async (req, res) => {
   try {
-    const [totalPrograms, activePrograms, pendingApps, approvedBeneficiaries, rejectedApps] = await Promise.all([
-      queryOne('SELECT COUNT(*) as count FROM programs'),
-      queryOne("SELECT COUNT(*) as count FROM programs WHERE status = 'open'"),
-      queryOne("SELECT COUNT(*) as count FROM applications WHERE status = 'pending'"),
-      queryOne("SELECT COUNT(*) as count FROM beneficiaries"),
-      queryOne("SELECT COUNT(*) as count FROM applications WHERE status = 'rejected'"),
+    const [
+      totalPrograms,
+      activePrograms,
+      pendingApps,
+      approvedBeneficiaries,
+      rejectedApps,
+    ] = await Promise.all([
+      queryOne('SELECT COUNT(*) AS count FROM programs'),
+      queryOne("SELECT COUNT(*) AS count FROM programs WHERE status = 'open'"),
+      queryOne("SELECT COUNT(*) AS count FROM applications WHERE status = 'pending'"),
+      queryOne('SELECT COUNT(*) AS count FROM beneficiaries'),
+      queryOne("SELECT COUNT(*) AS count FROM applications WHERE status = 'rejected'"),
     ]);
 
-    const perProgram = await query(`SELECT p.title, p.category, p.slots, p.slots_used,
-      COUNT(b.id) as beneficiary_count FROM programs p
-      LEFT JOIN beneficiaries b ON p.id = b.program_id GROUP BY p.id ORDER BY beneficiary_count DESC`);
+    const perProgram = await query(`
+      SELECT p.title, p.category, p.slots, p.slots_used,
+        COUNT(b.id) AS beneficiary_count
+      FROM programs p
+      LEFT JOIN beneficiaries b ON p.id = b.program_id
+      GROUP BY p.id
+      ORDER BY beneficiary_count DESC
+    `);
 
-    const mostAssisted = await query(`SELECT full_name, address, COUNT(*) as program_count
-      FROM beneficiaries GROUP BY full_name, address ORDER BY program_count DESC LIMIT 20`);
+    const mostAssisted = await query(`
+      SELECT full_name, address, COUNT(*) AS program_count
+      FROM beneficiaries
+      GROUP BY full_name, address
+      ORDER BY program_count DESC
+      LIMIT 20
+    `);
 
-    const repeatBeneficiaries = await query(`SELECT full_name, address, COUNT(*) as times_assisted
-      FROM beneficiaries GROUP BY full_name, address HAVING COUNT(*) > 1 ORDER BY times_assisted DESC`);
+    const repeatBeneficiaries = await query(`
+      SELECT full_name, address, COUNT(*) AS times_assisted
+      FROM beneficiaries
+      GROUP BY full_name, address
+      HAVING COUNT(*) > 1
+      ORDER BY times_assisted DESC
+    `);
 
     res.json({
       summary: {
@@ -61,13 +106,184 @@ router.get('/reports/summary', authenticate, requireAdmin, async (req, res) => {
         activePrograms: activePrograms.count,
         pendingApps: pendingApps.count,
         approvedBeneficiaries: approvedBeneficiaries.count,
-        rejectedApps: rejectedApps.count
+        rejectedApps: rejectedApps.count,
       },
       perProgram,
       mostAssisted,
-      repeatBeneficiaries
+      repeatBeneficiaries,
     });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── MONTHLY / YEARLY SUMMARY ───────────────────────────────────────────────
+router.get('/reports/monthly', authenticate, requireAdmin, async (req, res) => {
+  try {
+    const { year } = req.query;
+    const targetYear = year || new Date().getFullYear();
+
+    const monthly = await query(`
+      SELECT
+        MONTH(b.received_at) AS month,
+        MONTHNAME(b.received_at) AS month_name,
+        COUNT(*) AS beneficiary_count,
+        COUNT(DISTINCT b.program_id) AS programs_active
+      FROM beneficiaries b
+      WHERE YEAR(b.received_at) = ?
+      GROUP BY MONTH(b.received_at), MONTHNAME(b.received_at)
+      ORDER BY MONTH(b.received_at)
+    `, [targetYear]);
+
+    const yearly = await query(`
+      SELECT
+        YEAR(b.received_at) AS year,
+        COUNT(*) AS beneficiary_count,
+        COUNT(DISTINCT b.program_id) AS programs_count
+      FROM beneficiaries b
+      GROUP BY YEAR(b.received_at)
+      ORDER BY year DESC
+    `);
+
+    res.json({ monthly, yearly, year: targetYear });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── MANUAL ENCODE ─────────────────────────────────────────────────────────
+router.post('/manual', authenticate, requireAdmin, async (req, res) => {
+  try {
+    const { program_id, full_name, address, age, contact, barangay, notes } = req.body;
+
+    if (!program_id || !full_name || !address || !contact) {
+      return res.status(400).json({ error: 'Program, full name, address, and contact are required' });
+    }
+
+    const program = await queryOne('SELECT * FROM programs WHERE id = ?', [program_id]);
+    if (!program) return res.status(404).json({ error: 'Program not found' });
+
+    const duplicate = await queryOne(
+      'SELECT id FROM beneficiaries WHERE program_id = ? AND full_name = ? AND address = ?',
+      [program_id, full_name, address]
+    );
+    if (duplicate) {
+      return res.status(400).json({
+        error: `${full_name} is already recorded as a beneficiary for this program.`,
+      });
+    }
+
+    const history = await query(`
+      SELECT b.full_name, p.title AS program_title
+      FROM beneficiaries b
+      LEFT JOIN programs p ON b.program_id = p.id
+      WHERE b.full_name LIKE ? AND b.address LIKE ?
+    `, [`%${full_name}%`, `%${address}%`]);
+
+    const appResult = await run(`
+      INSERT INTO applications (program_id, full_name, address, age, contact, barangay, status, reviewed_by, reviewed_at)
+      VALUES (?, ?, ?, ?, ?, ?, 'approved', ?, NOW())
+    `, [program_id, full_name, address, age || 0, contact, barangay || null, req.user.id]);
+
+    await run(
+      'INSERT INTO beneficiaries (application_id, program_id, full_name, address, contact, notes) VALUES (?,?,?,?,?,?)',
+      [appResult.insertId, program_id, full_name, address, contact, notes || null]
+    );
+
+    await run('UPDATE programs SET slots_used = slots_used + 1 WHERE id = ?', [program_id]);
+
+    res.json({
+      message: `${full_name} has been successfully added as a beneficiary.`,
+      warning: history.length > 0
+        ? `⚠️ Note: ${full_name} has previously received benefits from: ${history.map(h => h.program_title).join(', ')}`
+        : null,
+      history,
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── BULK / EXCEL IMPORT ───────────────────────────────────────────────────
+router.post('/bulk-import', authenticate, requireAdmin, async (req, res) => {
+  try {
+    const { program_id, beneficiaries: list } = req.body;
+
+    if (!program_id || !list || !Array.isArray(list) || list.length === 0) {
+      return res.status(400).json({ error: 'Program and a list of beneficiaries are required' });
+    }
+
+    const program = await queryOne('SELECT * FROM programs WHERE id = ?', [program_id]);
+    if (!program) return res.status(404).json({ error: 'Program not found' });
+
+    let success = 0;
+    let skipped = 0;
+    const skippedNames = [];
+    const warnings = [];
+
+    for (const person of list) {
+      const { full_name, address, age, contact, barangay } = person;
+
+      if (!full_name || !address || !contact) {
+        skipped++;
+        continue;
+      }
+
+      const duplicate = await queryOne(
+        'SELECT id FROM beneficiaries WHERE program_id = ? AND full_name = ?',
+        [program_id, full_name]
+      );
+      if (duplicate) {
+        skipped++;
+        skippedNames.push(full_name);
+        continue;
+      }
+
+      const history = await query(`
+        SELECT p.title AS program_title
+        FROM beneficiaries b
+        LEFT JOIN programs p ON b.program_id = p.id
+        WHERE b.full_name LIKE ?
+      `, [`%${full_name}%`]);
+
+      if (history.length > 0) {
+        warnings.push(`${full_name} — has history in: ${history.map(h => h.program_title).join(', ')}`);
+      }
+
+      const appResult = await run(`
+        INSERT INTO applications (program_id, full_name, address, age, contact, barangay, status, reviewed_by, reviewed_at)
+        VALUES (?, ?, ?, ?, ?, ?, 'approved', ?, NOW())
+      `, [program_id, full_name, address, age || 0, contact, barangay || null, req.user.id]);
+
+      await run(
+        'INSERT INTO beneficiaries (application_id, program_id, full_name, address, contact) VALUES (?,?,?,?,?)',
+        [appResult.insertId, program_id, full_name, address, contact]
+      );
+
+      await run('UPDATE programs SET slots_used = slots_used + 1 WHERE id = ?', [program_id]);
+      success++;
+    }
+
+    res.json({
+      message: `Successfully imported ${success} beneficiar${success === 1 ? 'y' : 'ies'}.`,
+      success,
+      skipped,
+      skippedNames,
+      warnings,
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── DELETE BENEFICIARY ────────────────────────────────────────────────────
+router.delete('/:id', authenticate, requireAdmin, async (req, res) => {
+  try {
+    await run('DELETE FROM beneficiaries WHERE id = ?', [req.params.id]);
+    res.json({ message: 'Beneficiary deleted successfully' });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 export default router;
