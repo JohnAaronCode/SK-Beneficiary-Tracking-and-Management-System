@@ -1,75 +1,100 @@
 <script>
-  import '../app.css';
-  import { goto } from '$app/navigation';
-  import { user, logout } from '$lib/api.js';
-  import { LogOut, LayoutList, Building2 } from 'lucide-svelte';
+	import '../app.css';
+	import { goto } from '$app/navigation';
+	import { user, logout } from '$lib/api.js';
+	import { page } from '$app/stores';
+	import { LogOut, LayoutList, Building2 } from 'lucide-svelte';
 
-  /** @type {{ children: import('svelte').Snippet }} */
-  let { children } = $props();
+	/** @type {{ children: import('svelte').Snippet }} */
+	let { children } = $props();
 
-  function handleLogout() {
-    logout();
-    goto('/login');
-  }
+	// Pages that should render completely full-screen (no nav, no wrapper)
+	const FULL_SCREEN_ROUTES = ['/login', '/register', '/forgot-password', '/reset-password'];
+
+	let isFullScreen = $derived(
+		FULL_SCREEN_ROUTES.some(
+			(r) => $page.url.pathname === r || $page.url.pathname.startsWith(r + '?')
+		)
+	);
+
+	function handleLogout() {
+		logout();
+		goto('/login');
+	}
 </script>
 
-<div class="min-h-screen bg-slate-50">
-  <!-- Navbar -->
-  <nav class="text-white shadow-lg" style="background: #0A1F44; border-bottom: 1px solid rgba(255,255,255,0.08);">
-    <div class="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
-      <a href="/" class="flex items-center gap-2.5 group">
-        <div class="rounded-lg p-1.5 transition" style="background: rgba(255,255,255,0.10);">
-          <Building2 class="w-5 h-5" style="color: rgba(255,255,255,0.85);" />
-        </div>
-        <div>
-          <div class="font-bold text-sm leading-tight tracking-wide">SK Portal</div>
-          <div class="text-xs" style="color: rgba(255,255,255,0.45);">Beneficiary Tracking System</div>
-        </div>
-      </a>
+{#if isFullScreen}
+	<!-- Auth pages: completely full screen, no chrome -->
+	{@render children()}
+{:else}
+	<div class="min-h-screen bg-slate-50">
+		<!-- Navbar -->
+		<nav
+			class="text-white shadow-lg"
+			style="background: #0A1F44; border-bottom: 1px solid rgba(255,255,255,0.08);"
+		>
+			<div class="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
+				<a href="/" class="group flex items-center gap-2.5">
+					<div class="rounded-lg p-1.5 transition" style="background: rgba(255,255,255,0.10);">
+						<Building2 class="h-5 w-5" style="color: rgba(255,255,255,0.85);" />
+					</div>
+					<div>
+						<div class="text-sm leading-tight font-bold tracking-wide">SK Portal</div>
+						<div class="text-xs" style="color: rgba(255,255,255,0.45);">
+							Beneficiary Tracking and Management System
+						</div>
+					</div>
+				</a>
 
-      <div class="flex items-center gap-3">
-        {#if $user}
-          <span class="text-sm hidden sm:block" style="color: rgba(255,255,255,0.55);">
-            Kamusta, <strong class="text-white">{$user.full_name}</strong>!
-          </span>
-          <a href="/my-applications"
-            class="flex items-center gap-1.5 text-sm transition px-2 py-1.5 rounded-lg"
-            style="color: rgba(255,255,255,0.65);"
-            onmouseenter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.10)'}
-            onmouseleave={e => e.currentTarget.style.background = 'transparent'}>
-            <LayoutList class="w-4 h-4" />
-            <span class="hidden sm:inline">Aking Applications</span>
-          </a>
-          <button onclick={handleLogout}
-            class="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg transition border text-white"
-            style="background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.15);"
-            onmouseenter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.15)'}
-            onmouseleave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.08)'}>
-            <LogOut class="w-4 h-4" />
-            <span class="hidden sm:inline">Sign Out</span>
-          </button>
-        {:else}
-          <a href="/login" class="text-sm transition px-3 py-1.5"
-            style="color: rgba(255,255,255,0.65);">Login</a>
-          <a href="/register"
-            class="text-sm px-4 py-1.5 rounded-lg transition font-medium text-white"
-            style="background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.25);"
-            onmouseenter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.22)'}
-            onmouseleave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.15)'}>
-            Mag-register
-          </a>
-        {/if}
-      </div>
-    </div>
-  </nav>
+				<div class="flex items-center gap-3">
+					{#if $user}
+						<span class="hidden text-sm sm:block" style="color: rgba(255,255,255,0.55);">
+							Welcome, <strong class="text-white">{$user.full_name}</strong>!
+						</span>
+						<a
+							href="/my-applications"
+							class="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm transition"
+							style="color: rgba(255,255,255,0.65);"
+							onmouseenter={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.10)')}
+							onmouseleave={(e) => (e.currentTarget.style.background = 'transparent')}
+						>
+							<LayoutList class="h-4 w-4" />
+							<span class="hidden sm:inline">My Applications</span>
+						</a>
+						<button
+							onclick={handleLogout}
+							class="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm text-white transition"
+							style="background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.15);"
+							onmouseenter={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.15)')}
+							onmouseleave={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.08)')}
+						>
+							<LogOut class="h-4 w-4" />
+							<span class="hidden sm:inline">Sign Out</span>
+						</button>
+					{:else}
+						<a
+							href="/login"
+							class="px-3 py-1.5 text-sm transition"
+							style="color: rgba(255,255,255,0.65);">Login</a
+						>
+						<a
+							href="/register"
+							class="rounded-lg px-4 py-1.5 text-sm font-medium text-white transition"
+							style="background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.25);"
+							onmouseenter={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.22)')}
+							onmouseleave={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.15)')}
+						>
+							Register
+						</a>
+					{/if}
+				</div>
+			</div>
+		</nav>
 
-  <!-- Page Content -->
-  <main class="max-w-5xl mx-auto px-4 py-6">
-    {@render children()}
-  </main>
+		<!-- Page Content -->
+		<main class="mx-auto max-w-5xl px-4 py-6">
+			{@render children()}
+		</main>
 
-  <!-- Footer -->
-  <footer class="text-center text-xs text-slate-400 py-6 border-t border-slate-200 mt-10">
-    Sangguniang Kabataan — Beneficiary Tracking System
-  </footer>
-</div>
+	</div>
+{/if}

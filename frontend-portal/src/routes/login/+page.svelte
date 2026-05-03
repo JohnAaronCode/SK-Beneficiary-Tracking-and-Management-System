@@ -1,19 +1,23 @@
-<script>
+<script lang="ts">
   import { goto } from '$app/navigation';
   import { login, apiFetch } from '$lib/api.js';
+  import Lock from 'lucide-svelte/icons/lock';
+  import User from 'lucide-svelte/icons/user';
+  import Eye from 'lucide-svelte/icons/eye';
+  import EyeOff from 'lucide-svelte/icons/eye-off';
 
-  let username = $state('');
-  let password = $state('');
-  let error = $state('');
-  let loading = $state(false);
+  let credential   = $state('');
+  let password     = $state('');
+  let error        = $state('');
+  let loading      = $state(false);
+  let showPassword = $state(false);
 
   async function handleLogin() {
-    error = '';
-    loading = true;
+    error = ''; loading = true;
     try {
       const res = await apiFetch('/auth/login', {
         method: 'POST',
-        body: { username, password }
+        body: { username: credential, password },
       });
       login(res.user, res.token);
       goto('/');
@@ -23,44 +27,121 @@
       loading = false;
     }
   }
+
+  function focusBorder(e: FocusEvent) {
+    (e.currentTarget as HTMLInputElement).style.borderColor = 'rgba(255,255,255,0.35)';
+  }
+  function blurBorder(e: FocusEvent) {
+    (e.currentTarget as HTMLInputElement).style.borderColor = 'rgba(255,255,255,0.12)';
+  }
 </script>
 
-<div class="max-w-sm mx-auto mt-10">
-  <div class="card">
-    <div class="text-center mb-6">
-      <!-- Avatar icon with SK primary color -->
-      <div class="w-14 h-14 rounded-2xl flex items-center justify-center text-white text-2xl mx-auto mb-3 shadow"
-        style="background: #0A1F44;">
-        👤
-      </div>
-      <h1 class="text-xl font-bold text-gray-900">Login sa Portal</h1>
-      <p class="text-gray-500 text-sm">I-login ang iyong account para mag-apply</p>
-    </div>
+<div class="min-h-screen flex items-center justify-center p-4" style="background: #0A1F44;">
+  <div class="flex flex-col items-center w-full max-w-sm">
 
-    <form onsubmit={(e) => { e.preventDefault(); handleLogin(); }} class="space-y-4">
-      <div>
-        <label class="label" for="username">Username</label>
-        <input id="username" bind:value={username} class="input" placeholder="Ilagay ang username" required />
-      </div>
-      <div>
-        <label class="label" for="password">Password</label>
-        <input id="password" bind:value={password} type="password" class="input" placeholder="Ilagay ang password" required />
-      </div>
-      {#if error}
-        <div class="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-2">{error}</div>
-      {/if}
-      <button type="submit"
-        class="btn-primary w-full py-2.5"
-        disabled={loading}>
-        {loading ? 'Signing in...' : 'Login'}
-      </button>
-    </form>
-
-    <p class="text-center text-sm text-gray-500 mt-4">
-      Wala pang account?
-      <a href="/register" class="font-medium hover:underline transition" style="color: #0A1F44;">
-        Mag-register dito
-      </a>
+    <img src="/logo.png" alt="SK Logo" class="w-32 h-32 object-contain mb-3 opacity-95" />
+    <h1 class="text-white text-base font-bold tracking-wide mb-0 text-center">
+      SK Beneficiary Portal
+    </h1>
+    <p class="text-white/60 text-sm mb-4 text-center">
+      Sangguniang Kabataan — Program Applications
     </p>
+
+    <div class="w-full border rounded-2xl px-8 py-8"
+         style="background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.10);">
+
+      <p class="text-white/60 text-xs font-semibold uppercase tracking-widest mb-5">Applicant Login</p>
+
+      <form onsubmit={(e) => { e.preventDefault(); handleLogin(); }} class="space-y-3">
+
+        <div class="relative">
+          <User size={14}
+            class="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
+            style="color: rgba(255,255,255,0.3);" />
+          <input
+            bind:value={credential}
+            placeholder="Username or Email"
+            autocomplete="username"
+            required
+            onfocus={focusBorder}
+            onblur={blurBorder}
+            class="w-full rounded-lg pl-9 pr-4 py-2.5 text-sm text-white placeholder:text-white/30 outline-none transition"
+            style="background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12);"
+          />
+        </div>
+
+        <div class="relative">
+          <Lock size={14}
+            class="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
+            style="color: rgba(255,255,255,0.3);" />
+          <input
+            bind:value={password}
+            type={showPassword ? 'text' : 'password'}
+            placeholder="Password"
+            autocomplete="current-password"
+            required
+            onfocus={focusBorder}
+            onblur={blurBorder}
+            class="w-full rounded-lg pl-9 pr-10 py-2.5 text-sm text-white placeholder:text-white/30 outline-none transition"
+            style="background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12);"
+          />
+          <button
+            type="button"
+            onclick={() => showPassword = !showPassword}
+            class="absolute right-3 top-1/2 -translate-y-1/2 transition"
+            style="color: rgba(255,255,255,0.3);"
+            tabindex="-1"
+          >
+            {#if showPassword}<EyeOff size={14} />{:else}<Eye size={14} />{/if}
+          </button>
+        </div>
+
+        <div class="flex justify-end">
+          <a
+            href="/forgot-password"
+            class="text-xs transition"
+            style="color: rgba(255,255,255,0.4);"
+            onmouseenter={(e) => (e.currentTarget as HTMLAnchorElement).style.color = 'rgba(255,255,255,0.8)'}
+            onmouseleave={(e) => (e.currentTarget as HTMLAnchorElement).style.color = 'rgba(255,255,255,0.4)'}
+          >
+            Forgot password?
+          </a>
+        </div>
+
+        {#if error}
+          <div class="text-xs rounded-lg px-3 py-2"
+               style="background: rgba(220,38,38,0.15); border: 1px solid rgba(220,38,38,0.3); color: #fca5a5;">
+            {error}
+          </div>
+        {/if}
+
+        <button
+          type="submit"
+          disabled={loading}
+          onmouseenter={(e) => { if (!(e.currentTarget as HTMLButtonElement).disabled) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.18)'; }}
+          onmouseleave={(e) => { if (!(e.currentTarget as HTMLButtonElement).disabled) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.12)'; }}
+          class="w-full py-2.5 rounded-lg text-sm font-semibold tracking-wide text-white transition disabled:opacity-50 disabled:cursor-not-allowed"
+          style="background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.20);"
+        >
+          {loading ? 'Signing in...' : 'Login'}
+        </button>
+      </form>
+
+      <div class="mt-5 pt-4 text-center" style="border-top: 1px solid rgba(255,255,255,0.08);">
+        <p class="text-xs" style="color: rgba(255,255,255,0.35);">
+          Don't have an account?
+          <a
+            href="/register"
+            class="font-semibold transition"
+            style="color: rgba(255,255,255,0.6);"
+            onmouseenter={(e) => (e.currentTarget as HTMLAnchorElement).style.color = 'rgba(255,255,255,0.95)'}
+            onmouseleave={(e) => (e.currentTarget as HTMLAnchorElement).style.color = 'rgba(255,255,255,0.6)'}
+          >
+            Register here
+          </a>
+        </p>
+      </div>
+
+    </div>
   </div>
 </div>

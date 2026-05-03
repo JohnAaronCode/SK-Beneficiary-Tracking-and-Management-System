@@ -1,3 +1,4 @@
+// db/database.js
 import mysql from 'mysql2/promise';
 import bcrypt from 'bcryptjs';
 import 'dotenv/config';
@@ -32,19 +33,46 @@ export async function run(sql, params = []) {
 export async function initDatabase() {
   console.log('🔧 Initializing MySQL database...');
 
+  // ── USERS ───────────────────────────────────────────────────────────────
   await pool.execute(`CREATE TABLE IF NOT EXISTS users (
     id INT AUTO_INCREMENT PRIMARY KEY,
     username VARCHAR(100) UNIQUE NOT NULL,
     password VARCHAR(255) NOT NULL,
     full_name VARCHAR(200) NOT NULL,
-    role ENUM('admin','applicant') NOT NULL,
-    email VARCHAR(200),
+    role ENUM('admin','staff','applicant') NOT NULL DEFAULT 'staff',
+    position VARCHAR(100) DEFAULT NULL,
+    email VARCHAR(200) UNIQUE,
     contact VARCHAR(50),
     address TEXT,
     barangay VARCHAR(100),
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
 
+  // ── Safe migrations (idempotent, run every startup) ──────────────────────
+  const migrations = [
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS position VARCHAR(100) DEFAULT NULL AFTER role`,
+    `ALTER TABLE users MODIFY COLUMN role ENUM('admin','staff','applicant') NOT NULL DEFAULT 'staff'`,
+    // Make email unique if it wasn't before (ignore error if index already exists)
+  ];
+  for (const sql of migrations) {
+    try { await pool.execute(sql); } catch (_) {}
+  }
+  // Add unique index on email if not present
+  try {
+    await pool.execute(`ALTER TABLE users ADD UNIQUE INDEX idx_users_email (email)`);
+  } catch (_) {}
+
+  // ── PASSWORD RESETS ──────────────────────────────────────────────────────
+  await pool.execute(`CREATE TABLE IF NOT EXISTS password_resets (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL UNIQUE,
+    token VARCHAR(128) NOT NULL,
+    expires_at DATETIME NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+
+  // ── CATEGORIES ──────────────────────────────────────────────────────────
   await pool.execute(`CREATE TABLE IF NOT EXISTS program_categories (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(100) UNIQUE NOT NULL,
@@ -52,6 +80,7 @@ export async function initDatabase() {
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
 
+  // ── PROGRAMS ────────────────────────────────────────────────────────────
   await pool.execute(`CREATE TABLE IF NOT EXISTS programs (
     id INT AUTO_INCREMENT PRIMARY KEY,
     title VARCHAR(255) NOT NULL,
@@ -69,6 +98,7 @@ export async function initDatabase() {
     FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
 
+  // ── APPLICATIONS ─────────────────────────────────────────────────────────
   await pool.execute(`CREATE TABLE IF NOT EXISTS applications (
     id INT AUTO_INCREMENT PRIMARY KEY,
     program_id INT NOT NULL,
@@ -90,6 +120,7 @@ export async function initDatabase() {
     FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
 
+  // ── BENEFICIARIES ────────────────────────────────────────────────────────
   await pool.execute(`CREATE TABLE IF NOT EXISTS beneficiaries (
     id INT AUTO_INCREMENT PRIMARY KEY,
     application_id INT UNIQUE,
@@ -104,7 +135,7 @@ export async function initDatabase() {
     FOREIGN KEY (program_id) REFERENCES programs(id) ON DELETE CASCADE
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
 
-  // ── NEW TABLES ─────────────────────────────────────────────────────────────
+  // ── BARANGAY INFO ────────────────────────────────────────────────────────
   await pool.execute(`CREATE TABLE IF NOT EXISTS barangay_info (
     id INT AUTO_INCREMENT PRIMARY KEY,
     barangay_name VARCHAR(200),
@@ -115,19 +146,21 @@ export async function initDatabase() {
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
 
-  const admin = await queryOne('SELECT id FROM users WHERE role = ?', ['admin']);
+  // ── Default admin account ─────────────────────────────────────────────────
+  const admin = await queryOne("SELECT id FROM users WHERE role = 'admin' LIMIT 1");
   if (!admin) {
     const hash = await bcrypt.hash('admin123', 10);
     await run(
-      'INSERT INTO users (username, password, full_name, role) VALUES (?, ?, ?, ?)',
-      ['admin', hash, 'SK Admin', 'admin']
+      'INSERT INTO users (username, password, full_name, role, position) VALUES (?, ?, ?, ?, ?)',
+      ['admin', hash, 'SK Admin', 'admin', 'SK Chairperson']
     );
     console.log(' Default admin created: admin / admin123');
   }
 
+  // ── Default categories ────────────────────────────────────────────────────
   const defaultCats = [
     'Educational Assistance', 'Medical Aid', 'Sports Program',
-    'Livelihood', 'Relief Goods', 'Scholarship', 'Cultural Program'
+    'Livelihood', 'Relief Goods', 'Scholarship', 'Cultural Program', 'Social Services'
   ];
   for (const name of defaultCats) {
     await pool.execute('INSERT IGNORE INTO program_categories (name) VALUES (?)', [name]);

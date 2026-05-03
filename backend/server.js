@@ -1,78 +1,148 @@
+// server.js
 import 'dotenv/config';
 import express from 'express';
-import cors from 'cors';
+import cors    from 'cors';
 import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
+import { dirname, join }  from 'path';
 import { existsSync, mkdirSync } from 'fs';
 import { initDatabase, query, run } from './db/database.js';
+import { sendWelcomeEmail, verifyEmailConnection } from './services/email.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const app = express();
+const app  = express();
 const PORT = process.env.PORT || 3000;
 
 const uploadsDir = join(__dirname, 'uploads');
 if (!existsSync(uploadsDir)) mkdirSync(uploadsDir, { recursive: true });
 
-app.use(cors({ origin: ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:4173'] }));
+app.use(cors({
+  origin: [
+    'http://localhost:5173',
+    'http://localhost:5174',
+    'http://localhost:4173',
+  ],
+}));
 app.use(express.json());
 app.use('/uploads', express.static(uploadsDir));
 
-import authRoutes from './routes/auth.js';
-import programRoutes from './routes/programs.js';
+// ── Routes ─────────────────────────────────────────────────────────────────
+import authRoutes        from './routes/auth.js';
+import programRoutes     from './routes/programs.js';
 import applicationRoutes from './routes/applications.js';
 import beneficiaryRoutes from './routes/beneficiaries.js';
 
-app.use('/api/auth', authRoutes);
-app.use('/api/programs', programRoutes);
-app.use('/api/applications', applicationRoutes);
+app.use('/api/auth',          authRoutes);
+app.use('/api/programs',      programRoutes);
+app.use('/api/applications',  applicationRoutes);
 app.use('/api/beneficiaries', beneficiaryRoutes);
 
+// ── CATEGORIES ─────────────────────────────────────────────────────────────
 app.get('/api/categories', async (req, res) => {
   res.json(await query('SELECT * FROM program_categories ORDER BY name'));
 });
+
 app.post('/api/categories', async (req, res) => {
   try {
     const { name, description } = req.body;
-    const result = await run('INSERT INTO program_categories (name, description) VALUES (?,?)', [name, description || null]);
+    const result = await run(
+      'INSERT INTO program_categories (name, description) VALUES (?,?)',
+      [name, description || null]
+    );
     res.json({ id: result.insertId });
-  } catch { res.status(400).json({ error: 'Category already exists' }); }
+  } catch {
+    res.status(400).json({ error: 'Category already exists' });
+  }
 });
 
-// ── DELETE CATEGORY ────────────────────────────────────────────────────────
 app.delete('/api/categories/:name', async (req, res) => {
   try {
-    await run('DELETE FROM program_categories WHERE name = ?', [decodeURIComponent(req.params.name)]);
-    res.json({ message: 'Category deleted' });
-  } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-app.get('/api/users', async (req, res) => {
-  res.json(await query('SELECT id, username, full_name, role, email, contact, barangay, created_at FROM users ORDER BY created_at DESC'));
-});
-
-app.post('/api/users', async (req, res) => {
-  try {
-    const { username, password, full_name, role } = req.body;
-    if (!username || !password || !full_name)
-      return res.status(400).json({ error: 'Username, password, and full name are required' });
-    if (!['admin', 'staff'].includes(role))
-      return res.status(400).json({ error: 'Role must be admin or staff' });
-
-    const bcrypt = await import('bcryptjs');
-    const hash = await bcrypt.default.hash(password, 10);
-    const result = await run(
-      'INSERT INTO users (username, password, full_name, role) VALUES (?,?,?,?)',
-      [username, hash, full_name, role]
+    await run(
+      'DELETE FROM program_categories WHERE name = ?',
+      [decodeURIComponent(req.params.name)]
     );
-    res.json({ id: result.insertId, message: 'User created successfully' });
+    res.json({ message: 'Category deleted' });
   } catch (e) {
-    if (e.code === 'ER_DUP_ENTRY')
-      return res.status(400).json({ error: 'Username already taken' });
     res.status(500).json({ error: e.message });
   }
 });
 
-// ── DELETE / EDIT USER ─────────────────────────────────────────────────────
+// ── USERS ──────────────────────────────────────────────────────────────────
+app.get('/api/users', async (req, res) => {
+  res.json(
+    await query(
+      'SELECT id, username, full_name, role, position, email, contact, barangay, created_at FROM users ORDER BY created_at DESC'
+    )
+  );
+});
+
+app.post('/api/users', async (req, res) => {
+  try {
+    const { username, password, full_name, position, email } = req.body;
+
+    if (!username || !password || !full_name)
+      return res.status(400).json({ error: 'Username, password, and full name are required' });
+    if (password.length < 6)
+      return res.status(400).json({ error: 'Password must be at least 6 characters' });
+    if (!position?.trim())
+      return res.status(400).json({ error: 'Position is required' });
+
+    const role = req.body.role === 'admin' ? 'admin' : 'staff';
+
+    const bcrypt = await import('bcryptjs');
+    const hash   = await bcrypt.default.hash(password, 10);
+
+    const result = await run(
+      'INSERT INTO users (username, password, full_name, role, position, email) VALUES (?,?,?,?,?,?)',
+      [username, hash, full_name, role, position.trim(), email?.trim() || null]
+    );
+
+    // Send welcome email if address provided — fire and forget
+    if (email?.trim()) {
+      sendWelcomeEmail({
+        to:       email.trim(),
+        full_name,
+        username,
+        password,  // plaintext — user must change after first login
+        position:  position.trim(),
+      }).catch(err => console.warn('  Welcome email failed:', err.message));
+    }
+
+    res.json({ id: result.insertId, message: 'User created successfully' });
+  } catch (e) {
+    if (e.code === 'ER_DUP_ENTRY')
+      return res.status(400).json({ error: 'Username or email already taken' });
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.put('/api/users/:id', async (req, res) => {
+  try {
+    const { full_name, position, password, email } = req.body;
+    if (!full_name)
+      return res.status(400).json({ error: 'Full name is required' });
+
+    if (password && password.length >= 6) {
+      const bcrypt = await import('bcryptjs');
+      const hash   = await bcrypt.default.hash(password, 10);
+      await run(
+        'UPDATE users SET full_name=?, position=?, email=?, password=? WHERE id=?',
+        [full_name, position?.trim() || null, email?.trim() || null, hash, req.params.id]
+      );
+    } else {
+      await run(
+        'UPDATE users SET full_name=?, position=?, email=? WHERE id=?',
+        [full_name, position?.trim() || null, email?.trim() || null, req.params.id]
+      );
+    }
+
+    res.json({ message: 'User updated' });
+  } catch (e) {
+    if (e.code === 'ER_DUP_ENTRY')
+      return res.status(400).json({ error: 'Email already in use by another account' });
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.delete('/api/users/:id', async (req, res) => {
   try {
     const user = await query('SELECT role FROM users WHERE id = ?', [req.params.id]);
@@ -83,21 +153,9 @@ app.delete('/api/users/:id', async (req, res) => {
     }
     await run('DELETE FROM users WHERE id = ?', [req.params.id]);
     res.json({ message: 'User deleted' });
-  } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-app.put('/api/users/:id', async (req, res) => {
-  try {
-    const { full_name, role, password } = req.body;
-    if (password && password.length >= 6) {
-      const bcrypt = await import('bcryptjs');
-      const hash = await bcrypt.default.hash(password, 10);
-      await run('UPDATE users SET full_name=?, role=?, password=? WHERE id=?', [full_name, role, hash, req.params.id]);
-    } else {
-      await run('UPDATE users SET full_name=?, role=? WHERE id=?', [full_name, role, req.params.id]);
-    }
-    res.json({ message: 'User updated' });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // ── BARANGAY INFO ──────────────────────────────────────────────────────────
@@ -105,7 +163,9 @@ app.get('/api/barangay-info', async (req, res) => {
   try {
     const rows = await query('SELECT * FROM barangay_info LIMIT 1');
     res.json(rows[0] || {});
-  } catch { res.json({}); }
+  } catch {
+    res.json({});
+  }
 });
 
 app.put('/api/barangay-info', async (req, res) => {
@@ -124,13 +184,18 @@ app.put('/api/barangay-info', async (req, res) => {
       );
     }
     res.json({ message: 'Barangay information updated' });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
+// ── HEALTH ─────────────────────────────────────────────────────────────────
 app.get('/api/health', (_, res) => res.json({ status: 'OK', time: new Date().toISOString() }));
 
+// ── START ──────────────────────────────────────────────────────────────────
 initDatabase()
-  .then(() => {
+  .then(async () => {
+    await verifyEmailConnection();
     app.listen(PORT, () => {
       console.log(`\n SK System Backend running at http://localhost:${PORT}`);
       console.log(` Database: MySQL (${process.env.DB_NAME || 'sk_system'})`);
@@ -139,6 +204,5 @@ initDatabase()
   })
   .catch(err => {
     console.error(' Database connection failed:', err.message);
-    console.error(' Check your .env file and make sure MySQL is running!');
     process.exit(1);
   });

@@ -6,21 +6,27 @@
   import Eye from 'lucide-svelte/icons/eye';
   import EyeOff from 'lucide-svelte/icons/eye-off';
 
-  let username = $state('');
-  let password = $state('');
-  let error = $state('');
-  let loading = $state(false);
+  let credential = $state('');   // accepts username OR email
+  let password   = $state('');
+  let error      = $state('');
+  let loading    = $state(false);
   let showPassword = $state(false);
 
   async function handleLogin() {
     error = ''; loading = true;
     try {
-      const res = await apiFetch('/auth/login', { method: 'POST', body: { username, password } });
+      // Send as "username" — the backend checks both username and email columns
+      const res = await apiFetch('/auth/login', {
+        method: 'POST',
+        body: { username: credential, password },
+      });
       login(res.user, res.token);
       goto('/');
     } catch (e) {
       error = e instanceof Error ? e.message : 'Login failed';
-    } finally { loading = false; }
+    } finally {
+      loading = false;
+    }
   }
 
   function focusBorder(e: FocusEvent) {
@@ -43,20 +49,28 @@
   <div class="flex flex-col items-center w-full max-w-sm">
 
     <img src="/logo.png" alt="SK Logo" class="w-35 h-35 object-contain mb-3 opacity-95" />
-    <h1 class="text-white text-base font-bold tracking-wide mb-4 text-center">
-      SK Beneficiary Tracking and Management Portal
+    <h1 class="text-white text-base font-bold tracking-wide mb-0 text-center">
+      SK Personnel Portal
     </h1>
+    <p class="text-white/60 text-sm mb-4 text-center">
+      Authorized SK Officials Only
+    </p>
 
-    <div class="w-full border rounded-2xl px-8 py-8" style="background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.10);">
-      <p class="text-white/60 text-xs font-semibold uppercase tracking-widest mb-5">Sign in to your account</p>
+    <div class="w-full border rounded-2xl px-8 py-8"
+         style="background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.10);">
+      <p class="text-white/60 text-xs font-semibold uppercase tracking-widest mb-5">SK Personnel Login</p>
 
       <form onsubmit={(e) => { e.preventDefault(); handleLogin(); }} class="space-y-3">
 
+        <!-- Username or Email -->
         <div class="relative">
-          <User size={14} class="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" style="color: rgba(255,255,255,0.3);" />
+          <User size={14}
+            class="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
+            style="color: rgba(255,255,255,0.3);" />
           <input
-            bind:value={username}
-            placeholder="Username"
+            bind:value={credential}
+            placeholder="Username or Email"
+            autocomplete="username"
             required
             onfocus={focusBorder}
             onblur={blurBorder}
@@ -65,12 +79,16 @@
           />
         </div>
 
+        <!-- Password -->
         <div class="relative">
-          <Lock size={14} class="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" style="color: rgba(255,255,255,0.3);" />
+          <Lock size={14}
+            class="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
+            style="color: rgba(255,255,255,0.3);" />
           <input
             bind:value={password}
             type={showPassword ? 'text' : 'password'}
             placeholder="Password"
+            autocomplete="current-password"
             required
             onfocus={focusBorder}
             onblur={blurBorder}
@@ -84,14 +102,11 @@
             style="color: rgba(255,255,255,0.3);"
             tabindex="-1"
           >
-            {#if showPassword}
-              <EyeOff size={14} />
-            {:else}
-              <Eye size={14} />
-            {/if}
+            {#if showPassword}<EyeOff size={14} />{:else}<Eye size={14} />{/if}
           </button>
         </div>
 
+        <!-- Forgot password -->
         <div class="flex justify-end">
           <a
             href="/forgot-password"
@@ -104,12 +119,15 @@
           </a>
         </div>
 
+        <!-- Error -->
         {#if error}
-          <div class="text-xs rounded-lg px-3 py-2" style="background: rgba(220,38,38,0.15); border: 1px solid rgba(220,38,38,0.3); color: #fca5a5;">
+          <div class="text-xs rounded-lg px-3 py-2"
+               style="background: rgba(220,38,38,0.15); border: 1px solid rgba(220,38,38,0.3); color: #fca5a5;">
             {error}
           </div>
         {/if}
 
+        <!-- Submit -->
         <button
           type="submit"
           disabled={loading}
@@ -118,7 +136,7 @@
           class="w-full py-2.5 rounded-lg text-sm font-semibold tracking-wide text-white transition disabled:opacity-50 disabled:cursor-not-allowed"
           style="background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.20);"
         >
-          {loading ? 'Signing in...' : 'Sign In'}
+          {loading ? 'Logging in...' : 'Login'}
         </button>
       </form>
     </div>

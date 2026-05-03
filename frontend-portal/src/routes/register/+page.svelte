@@ -1,18 +1,38 @@
-<script>
+<script lang="ts">
   import { goto } from '$app/navigation';
   import { login, apiFetch } from '$lib/api.js';
+  import User from 'lucide-svelte/icons/user';
+  import Lock from 'lucide-svelte/icons/lock';
+  import Phone from 'lucide-svelte/icons/phone';
+  import MapPin from 'lucide-svelte/icons/map-pin';
+  import Mail from 'lucide-svelte/icons/mail';
+  import Eye from 'lucide-svelte/icons/eye';
+  import EyeOff from 'lucide-svelte/icons/eye-off';
+  import ArrowLeft from 'lucide-svelte/icons/arrow-left';
 
   let form = $state({
-    username: '', password: '', confirmPassword: '',
-    full_name: '', contact: '', address: '', barangay: ''
+    username:        '',
+    password:        '',
+    confirmPassword: '',
+    full_name:       '',
+    email:           '',
+    contact:         '',
+    address:         '',
+    barangay:        '',
   });
-  let error = $state('');
-  let loading = $state(false);
+  let error       = $state('');
+  let loading     = $state(false);
+  let showPass    = $state(false);
+  let showConfirm = $state(false);
 
   async function handleRegister() {
     error = '';
     if (form.password !== form.confirmPassword) {
-      error = 'Hindi magkatugma ang password!';
+      error = 'Passwords do not match.';
+      return;
+    }
+    if (form.password.length < 6) {
+      error = 'Password must be at least 6 characters.';
       return;
     }
     loading = true;
@@ -20,13 +40,14 @@
       const res = await apiFetch('/auth/register', {
         method: 'POST',
         body: {
-          username: form.username,
-          password: form.password,
+          username:  form.username,
+          password:  form.password,
           full_name: form.full_name,
-          contact: form.contact,
-          address: form.address,
-          barangay: form.barangay
-        }
+          email:     form.email    || undefined,
+          contact:   form.contact,
+          address:   form.address,
+          barangay:  form.barangay,
+        },
       });
       login(res.user, res.token);
       goto('/');
@@ -36,85 +57,189 @@
       loading = false;
     }
   }
+
+  function focusBorder(e: FocusEvent) {
+    (e.currentTarget as HTMLInputElement).style.borderColor = 'rgba(255,255,255,0.35)';
+  }
+  function blurBorder(e: FocusEvent) {
+    (e.currentTarget as HTMLInputElement).style.borderColor = 'rgba(255,255,255,0.12)';
+  }
 </script>
 
-<div class="max-w-lg mx-auto mt-8">
-  <div class="card">
-    <div class="text-center mb-6">
-      <div class="w-14 h-14 rounded-2xl flex items-center justify-center text-white text-2xl mx-auto mb-3 shadow"
-        style="background: #0A1F44;">
-        📝
-      </div>
-      <h1 class="text-xl font-bold text-gray-900">Mag-register</h1>
-      <p class="text-gray-500 text-sm">Gumawa ng account para makapag-apply sa mga SK programs</p>
-    </div>
+<div class="min-h-screen flex items-center justify-center p-4 py-10" style="background: #0A1F44;">
+  <div class="flex flex-col items-center w-full max-w-sm">
 
-    <form onsubmit={(e) => { e.preventDefault(); handleRegister(); }} class="space-y-4">
+    <img src="/logo.png" alt="SK Logo" class="w-24 h-24 object-contain mb-3 opacity-95" />
+    <h1 class="text-white text-base font-bold tracking-wide mb-1 text-center">
+      SK Beneficiary Portal
+    </h1>
+    <p class="text-white/60 text-sm mb-5 text-center">Create an account to apply for SK programs</p>
 
-      <!-- Section label -->
-      <div class="rounded-lg p-3 text-xs font-semibold"
-        style="background: rgba(10,31,68,0.06); color: #0A1F44;">
-        Personal Information
-      </div>
+    <div class="w-full border rounded-2xl px-8 py-8"
+         style="background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.10);">
 
-      <div>
-        <label class="label" for="fullname">Buong Pangalan *</label>
-        <input id="fullname" bind:value={form.full_name} class="input" placeholder="e.g. Juan Dela Cruz" required />
-      </div>
+      <p class="text-white/60 text-xs font-semibold uppercase tracking-widest mb-4">Personal Information</p>
 
-      <div class="grid grid-cols-2 gap-3">
-        <div>
-          <label class="label" for="contact">Contact Number *</label>
-          <input id="contact" bind:value={form.contact} class="input" placeholder="09XXXXXXXXX" required />
+      <div class="space-y-3">
+        <div class="relative">
+          <User size={14} class="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" style="color: rgba(255,255,255,0.3);" />
+          <input
+            bind:value={form.full_name}
+            placeholder="Full Name *"
+            required
+            onfocus={focusBorder}
+            onblur={blurBorder}
+            class="w-full rounded-lg pl-9 pr-4 py-2.5 text-sm text-white placeholder:text-white/30 outline-none transition"
+            style="background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12);"
+          />
         </div>
-        <div>
-          <label class="label" for="barangay">Barangay *</label>
-          <input id="barangay" bind:value={form.barangay} class="input" placeholder="Barangay mo" required />
+
+        <div class="grid grid-cols-2 gap-2">
+          <div class="relative">
+            <Phone size={13} class="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" style="color: rgba(255,255,255,0.3);" />
+            <input
+              bind:value={form.contact}
+              placeholder="Contact No. *"
+              required
+              onfocus={focusBorder}
+              onblur={blurBorder}
+              class="w-full rounded-lg pl-8 pr-3 py-2.5 text-sm text-white placeholder:text-white/30 outline-none transition"
+              style="background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12);"
+            />
+          </div>
+          <div class="relative">
+            <MapPin size={13} class="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" style="color: rgba(255,255,255,0.3);" />
+            <input
+              bind:value={form.barangay}
+              placeholder="Barangay *"
+              required
+              onfocus={focusBorder}
+              onblur={blurBorder}
+              class="w-full rounded-lg pl-8 pr-3 py-2.5 text-sm text-white placeholder:text-white/30 outline-none transition"
+              style="background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12);"
+            />
+          </div>
+        </div>
+
+        <div class="relative">
+          <MapPin size={14} class="absolute left-3 top-3 pointer-events-none" style="color: rgba(255,255,255,0.3);" />
+          <textarea
+            bind:value={form.address}
+            placeholder="Full Address (Blk/Lot, Street, Barangay, City) *"
+            required
+            rows={2}
+            onfocus={focusBorder}
+            onblur={blurBorder}
+            class="w-full rounded-lg pl-9 pr-4 py-2.5 text-sm text-white placeholder:text-white/30 outline-none transition resize-none"
+            style="background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12);"
+          ></textarea>
         </div>
       </div>
 
-      <div>
-        <label class="label" for="address">Address *</label>
-        <input id="address" bind:value={form.address} class="input" placeholder="Kumpletong address" required />
-      </div>
+      <div class="my-5" style="border-top: 1px solid rgba(255,255,255,0.08);"></div>
 
-      <div class="rounded-lg p-3 text-xs font-semibold mt-4"
-        style="background: rgba(10,31,68,0.06); color: #0A1F44;">
-        Account Information
-      </div>
+      <p class="text-white/60 text-xs font-semibold uppercase tracking-widest mb-4">Account Information</p>
 
-      <div>
-        <label class="label" for="username">Username *</label>
-        <input id="username" bind:value={form.username} class="input" placeholder="Piliin ang username" required />
-      </div>
-
-      <div class="grid grid-cols-2 gap-3">
-        <div>
-          <label class="label" for="pass">Password *</label>
-          <input id="pass" bind:value={form.password} type="password" class="input" placeholder="Password" required />
+      <div class="space-y-3">
+        <div class="relative">
+          <User size={14} class="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" style="color: rgba(255,255,255,0.3);" />
+          <input
+            bind:value={form.username}
+            placeholder="Username *"
+            autocomplete="username"
+            required
+            onfocus={focusBorder}
+            onblur={blurBorder}
+            class="w-full rounded-lg pl-9 pr-4 py-2.5 text-sm text-white placeholder:text-white/30 outline-none transition"
+            style="background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12);"
+          />
         </div>
-        <div>
-          <label class="label" for="cpass">Ulitin ang Password *</label>
-          <input id="cpass" bind:value={form.confirmPassword} type="password" class="input" placeholder="Ulitin" required />
+
+        <div class="relative">
+          <Mail size={14} class="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" style="color: rgba(255,255,255,0.3);" />
+          <input
+            bind:value={form.email}
+            type="email"
+            placeholder="Email Address *"
+            onfocus={focusBorder}
+            onblur={blurBorder}
+            class="w-full rounded-lg pl-9 pr-4 py-2.5 text-sm text-white placeholder:text-white/30 outline-none transition"
+            style="background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12);"
+          />
+        </div>
+
+        <div class="relative">
+          <Lock size={14} class="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" style="color: rgba(255,255,255,0.3);" />
+          <input
+            bind:value={form.password}
+            type={showPass ? 'text' : 'password'}
+            placeholder="Password *"
+            autocomplete="new-password"
+            required
+            onfocus={focusBorder}
+            onblur={blurBorder}
+            class="w-full rounded-lg pl-9 pr-10 py-2.5 text-sm text-white placeholder:text-white/30 outline-none transition"
+            style="background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12);"
+          />
+          <button type="button" onclick={() => showPass = !showPass}
+            class="absolute right-3 top-1/2 -translate-y-1/2 transition"
+            style="color: rgba(255,255,255,0.3);" tabindex="-1">
+            {#if showPass}<EyeOff size={14} />{:else}<Eye size={14} />{/if}
+          </button>
+        </div>
+
+        <div class="relative">
+          <Lock size={14} class="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" style="color: rgba(255,255,255,0.3);" />
+          <input
+            bind:value={form.confirmPassword}
+            type={showConfirm ? 'text' : 'password'}
+            placeholder="Confirm Password *"
+            autocomplete="new-password"
+            required
+            onfocus={focusBorder}
+            onblur={blurBorder}
+            class="w-full rounded-lg pl-9 pr-10 py-2.5 text-sm text-white placeholder:text-white/30 outline-none transition"
+            style="background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12);"
+          />
+          <button type="button" onclick={() => showConfirm = !showConfirm}
+            class="absolute right-3 top-1/2 -translate-y-1/2 transition"
+            style="color: rgba(255,255,255,0.3);" tabindex="-1">
+            {#if showConfirm}<EyeOff size={14} />{:else}<Eye size={14} />{/if}
+          </button>
         </div>
       </div>
 
       {#if error}
-        <div class="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-2">{error}</div>
+        <div class="mt-3 text-xs rounded-lg px-3 py-2"
+             style="background: rgba(220,38,38,0.15); border: 1px solid rgba(220,38,38,0.3); color: #fca5a5;">
+          {error}
+        </div>
       {/if}
 
-      <button type="submit"
-        class="btn-primary w-full py-2.5 text-base"
-        disabled={loading}>
-        {loading ? 'Nagre-register...' : '✅ Mag-register'}
+      <button
+        type="button"
+        onclick={handleRegister}
+        disabled={loading}
+        onmouseenter={(e) => { if (!(e.currentTarget as HTMLButtonElement).disabled) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.18)'; }}
+        onmouseleave={(e) => { if (!(e.currentTarget as HTMLButtonElement).disabled) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.12)'; }}
+        class="mt-5 w-full py-2.5 rounded-lg text-sm font-semibold tracking-wide text-white transition disabled:opacity-50 disabled:cursor-not-allowed"
+        style="background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.20);"
+      >
+        {loading ? 'Creating account...' : 'Create Account'}
       </button>
-    </form>
 
-    <p class="text-center text-sm text-gray-500 mt-4">
-      May account na?
-      <a href="/login" class="font-medium hover:underline" style="color: #0A1F44;">
-        Login dito
-      </a>
-    </p>
+      <div class="mt-4 text-center">
+        <a
+          href="/login"
+          class="inline-flex items-center gap-1.5 text-xs transition"
+          style="color: rgba(255,255,255,0.4);"
+          onmouseenter={(e) => (e.currentTarget as HTMLAnchorElement).style.color = 'rgba(255,255,255,0.8)'}
+          onmouseleave={(e) => (e.currentTarget as HTMLAnchorElement).style.color = 'rgba(255,255,255,0.4)'}
+        >
+          <ArrowLeft size={12} /> Already have an account? Sign in
+        </a>
+      </div>
+
+    </div>
   </div>
 </div>
