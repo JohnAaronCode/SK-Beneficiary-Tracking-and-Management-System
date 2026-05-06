@@ -4,26 +4,20 @@
   import BarChart2 from 'lucide-svelte/icons/bar-chart-2';
   import Trophy from 'lucide-svelte/icons/trophy';
   import AlertTriangle from 'lucide-svelte/icons/alert-triangle';
-  import ClipboardList from 'lucide-svelte/icons/clipboard-list';
   import CheckSquare from 'lucide-svelte/icons/check-square';
-  import Clock from 'lucide-svelte/icons/clock';
-  import Users from 'lucide-svelte/icons/users';
-  import XCircle from 'lucide-svelte/icons/x-circle';
   import CalendarDays from 'lucide-svelte/icons/calendar-days';
   import TrendingUp from 'lucide-svelte/icons/trending-up';
   import ChevronLeft from 'lucide-svelte/icons/chevron-left';
   import ChevronRight from 'lucide-svelte/icons/chevron-right';
 
-  interface ReportSummary {
-    totalPrograms: number; activePrograms: number;
-    pendingApps: number; approvedBeneficiaries: number; rejectedApps: number;
-  }
   interface ProgramStat   { title: string; category: string; beneficiary_count: number; slots: number; }
   interface MostAssisted  { full_name: string; address: string; program_count: number; }
   interface RepeatBeneficiary { full_name: string; address: string; times_assisted: number; }
   interface Report {
-    summary: ReportSummary; perProgram: ProgramStat[];
-    mostAssisted: MostAssisted[]; repeatBeneficiaries: RepeatBeneficiary[];
+    summary: { totalPrograms: number; activePrograms: number; pendingApps: number; approvedBeneficiaries: number; rejectedApps: number; };
+    perProgram: ProgramStat[];
+    mostAssisted: MostAssisted[];
+    repeatBeneficiaries: RepeatBeneficiary[];
   }
   interface MonthlyRow { month: number; month_name: string; beneficiary_count: number; programs_active: number; }
   interface YearlyRow  { year: number; beneficiary_count: number; programs_count: number; }
@@ -54,7 +48,6 @@
     monthlyReport = await apiFetch(`/beneficiaries/reports/monthly?year=${selectedYear}`);
   }
 
-  // Build full 12-month grid (fill missing months with 0)
   let monthGrid = $derived(
     MONTHS.map((name, i) => {
       const found = monthlyReport?.monthly.find(m => m.month === i + 1);
@@ -80,30 +73,12 @@
     </div>
   {:else if report}
 
-    <!-- Summary Cards -->
-    <div class="grid grid-cols-2 lg:grid-cols-5 gap-4">
-      {#each [
-        { val: report.summary.totalPrograms,         label: 'Total Programs',  icon: ClipboardList, bg: 'bg-[#0A1F44]/10', text: 'text-[#0A1F44]', border: 'border-[#0A1F44]/20' },
-        { val: report.summary.activePrograms,        label: 'Active Programs', icon: CheckSquare,   bg: 'bg-green-50',    text: 'text-green-700', border: 'border-green-100'    },
-        { val: report.summary.pendingApps,           label: 'Pending',         icon: Clock,         bg: 'bg-yellow-50',   text: 'text-yellow-700',border: 'border-yellow-100'   },
-        { val: report.summary.approvedBeneficiaries, label: 'Beneficiaries',   icon: Users,         bg: 'bg-[#0A1F44]/10',text: 'text-[#0A1F44]', border: 'border-[#0A1F44]/20' },
-        { val: report.summary.rejectedApps,          label: 'Rejected',        icon: XCircle,       bg: 'bg-red-50',      text: 'text-red-700',   border: 'border-red-100'      },
-      ] as s}
-        <div class="card border {s.border} {s.bg} {s.text}">
-          <s.icon size={28} />
-          <div class="text-3xl font-bold mt-1">{s.val}</div>
-          <div class="text-xs font-medium mt-1">{s.label}</div>
-        </div>
-      {/each}
-    </div>
-
     <!-- Monthly Summary -->
     <div class="card">
       <div class="flex items-center justify-between mb-5">
         <h2 class="font-semibold text-gray-800 flex items-center gap-2">
           <CalendarDays size={16} style="color:#0A1F44;" /> Monthly Beneficiary Distribution
         </h2>
-        <!-- Year Selector -->
         <div class="flex items-center gap-2">
           <button
             onclick={() => changeYear(-1)}
@@ -128,7 +103,6 @@
           <p class="text-sm">No beneficiary data for {selectedYear}</p>
         </div>
       {:else}
-        <!-- Bar Chart -->
         <div class="flex items-end gap-1.5 h-36 mb-2">
           {#each monthGrid as m}
             <div class="flex-1 flex flex-col items-center gap-1">
@@ -138,7 +112,6 @@
                     class="w-full rounded-t-md transition-all duration-300 relative group cursor-default"
                     style="height: {Math.max(4, Math.round(m.count / maxMonthCount * 100))}%; background:#0A1F44;"
                   >
-                    <!-- Tooltip -->
                     <div class="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-[10px] px-2 py-0.5 rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition z-10">
                       {m.count} beneficiar{m.count === 1 ? 'y' : 'ies'}
                     </div>
@@ -152,7 +125,6 @@
           {/each}
         </div>
 
-        <!-- Monthly Table -->
         <div class="overflow-x-auto mt-4">
           <table class="w-full text-sm">
             <thead class="text-left text-gray-500 border-b border-gray-100">

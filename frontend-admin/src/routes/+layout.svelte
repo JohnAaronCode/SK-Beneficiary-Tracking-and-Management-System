@@ -9,38 +9,36 @@
   import ClipboardList   from 'lucide-svelte/icons/clipboard-list';
   import FileText        from 'lucide-svelte/icons/file-text';
   import Users           from 'lucide-svelte/icons/users';
-  import Search          from 'lucide-svelte/icons/search';
   import BarChart2       from 'lucide-svelte/icons/bar-chart-2';
   import Settings        from 'lucide-svelte/icons/settings';
   import LogOut          from 'lucide-svelte/icons/log-out';
   import ChevronLeft     from 'lucide-svelte/icons/chevron-left';
   import ChevronRight    from 'lucide-svelte/icons/chevron-right';
   import ShieldAlert     from 'lucide-svelte/icons/shield-alert';
+  import Menu            from 'lucide-svelte/icons/menu';
+  import X               from 'lucide-svelte/icons/x';
 
   let { children }: { children: Snippet } = $props();
   let collapsed = $state(false);
+  // Mobile drawer state
+  let mobileOpen = $state(false);
 
-  // Pages accessible to non-admin staff
   const STAFF_ROUTES = ['/', '/programs', '/applications', '/beneficiaries', '/search', '/reports'];
 
   onMount(() => {
     const path = $page.url.pathname as string;
     if (!$user && path !== '/login') { goto('/login'); return; }
-
-    // If staff tries to access settings, redirect to dashboard
     const role = ($user as any)?.role;
     if (role === 'staff' && !STAFF_ROUTES.some(r => path === r || path.startsWith(r + '/'))) {
       goto('/');
     }
   });
 
-  // Nav — settings is admin-only
   const allNav = [
     { href: '/',              icon: LayoutDashboard, label: 'Dashboard',      roles: ['admin', 'staff'] },
     { href: '/programs',      icon: ClipboardList,   label: 'Programs',       roles: ['admin', 'staff'] },
     { href: '/applications',  icon: FileText,        label: 'Applications',   roles: ['admin', 'staff'] },
     { href: '/beneficiaries', icon: Users,           label: 'Beneficiaries',  roles: ['admin', 'staff'] },
-    { href: '/search',        icon: Search,          label: 'Search Records', roles: ['admin', 'staff'] },
     { href: '/reports',       icon: BarChart2,       label: 'Reports',        roles: ['admin', 'staff'] },
     { href: '/settings',      icon: Settings,        label: 'Settings',       roles: ['admin'] },
   ];
@@ -54,10 +52,14 @@
     goto('/login');
   }
 
+  function handleNavClick() {
+    // Close mobile drawer on nav click
+    mobileOpen = false;
+  }
+
   let currentRole     = $derived(($user as any)?.role     ?? '');
   let currentPosition = $derived(($user as any)?.position ?? '');
 
-  // Show position label in sidebar badge
   let positionLabel = $derived(
     currentPosition
       ? currentPosition
@@ -80,9 +82,26 @@
 {:else if $user}
   <div class="flex h-screen overflow-hidden" style="background: #F5F7FA;">
 
-    <!-- Sidebar -->
+    <!-- ── Mobile Overlay backdrop ── -->
+    {#if mobileOpen}
+      <div
+        class="fixed inset-0 z-40 bg-black/40 lg:hidden"
+        role="button"
+        tabindex="-1"
+        onclick={() => mobileOpen = false}
+        onkeydown={(e) => e.key === 'Enter' && (mobileOpen = false)}
+      ></div>
+    {/if}
+
+    <!-- ── Sidebar ── -->
+    <!-- Desktop: always visible, collapsible. Mobile: off-canvas drawer -->
     <aside
-      class="{collapsed ? 'w-17.5' : 'w-60'} flex flex-col shrink-0 transition-all duration-300 ease-in-out"
+      class="
+        fixed lg:relative inset-y-0 left-0 z-50
+        flex flex-col shrink-0 transition-all duration-300 ease-in-out
+        {collapsed ? 'w-17.5' : 'w-60'}
+        {mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+      "
       style="background: #0A1F44;"
     >
       <!-- Logo -->
@@ -90,26 +109,38 @@
                   {collapsed ? 'justify-center' : 'justify-between'}">
         {#if !collapsed}
           <div class="flex items-center gap-3 min-w-0">
-            <img src="/logo.png" alt="SK Logo" class="w-12 h-12 object-contain shrink-0 drop-shadow-md" />
+            <img src="/logo.png" alt="SK Logo" class="w-10 h-10 sm:w-12 sm:h-12 object-contain shrink-0 drop-shadow-md" />
             <span class="text-xs font-bold text-white leading-snug">
               SK Beneficiary<br/>Tracking and<br/>Management System
             </span>
           </div>
         {:else}
-          <img src="/logo.png" alt="SK Logo" class="w-10 h-10 object-contain drop-shadow-md" />
+          <img src="/logo.png" alt="SK Logo" class="w-9 h-9 object-contain drop-shadow-md" />
         {/if}
-        <button
-          onclick={() => collapsed = !collapsed}
-          class="p-1.5 rounded-lg transition text-white/40 hover:text-white hover:bg-white/10 shrink-0
-                 {collapsed ? 'hidden' : ''}"
-        >
-          <ChevronLeft size={15} />
-        </button>
+
+        <div class="flex items-center gap-1">
+          <!-- Mobile close button -->
+          <button
+            onclick={() => mobileOpen = false}
+            class="p-1.5 rounded-lg transition text-white/40 hover:text-white hover:bg-white/10 shrink-0 lg:hidden"
+          >
+            <X size={15} />
+          </button>
+          <!-- Desktop collapse button -->
+          {#if !collapsed}
+            <button
+              onclick={() => collapsed = !collapsed}
+              class="p-1.5 rounded-lg transition text-white/40 hover:text-white hover:bg-white/10 shrink-0 hidden lg:block"
+            >
+              <ChevronLeft size={15} />
+            </button>
+          {/if}
+        </div>
       </div>
 
       {#if collapsed}
         <button onclick={() => collapsed = !collapsed}
-          class="mx-auto mt-3 p-1.5 rounded-lg transition text-white/40 hover:text-white hover:bg-white/10">
+          class="mx-auto mt-3 p-1.5 rounded-lg transition text-white/40 hover:text-white hover:bg-white/10 hidden lg:block">
           <ChevronRight size={15} />
         </button>
       {/if}
@@ -126,6 +157,7 @@
           {@const active = ($page.url.pathname as string) === item.href}
           <a
             href={item.href}
+            onclick={handleNavClick}
             title={collapsed ? item.label : ''}
             class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150
                    {collapsed ? 'justify-center' : ''}
@@ -166,7 +198,6 @@
           </div>
         {/if}
 
-        <!-- Staff restriction notice -->
         {#if !collapsed && currentRole === 'staff'}
           <div class="flex items-center gap-2 px-3 py-2 rounded-xl text-[10px] text-white/40"
                style="background:rgba(255,255,255,0.05);">
@@ -188,9 +219,28 @@
       </div>
     </aside>
 
-    <!-- Main -->
-    <main class="flex-1 overflow-y-auto" style="background: #F5F7FA;">
-      {@render children()}
-    </main>
+    <!-- ── Main content area ── -->
+    <div class="flex-1 flex flex-col overflow-hidden">
+
+      <!-- Mobile top bar with hamburger -->
+      <header class="flex items-center gap-3 px-4 py-3 border-b border-gray-200 bg-white lg:hidden shrink-0">
+        <button
+          onclick={() => mobileOpen = true}
+          class="p-2 rounded-xl text-gray-500 hover:bg-gray-100 transition"
+        >
+          <Menu size={20} />
+        </button>
+        <div class="flex items-center gap-2.5 min-w-0">
+          <img src="/logo.png" alt="SK Logo" class="w-7 h-7 object-contain" />
+          <span class="text-sm font-bold text-gray-800 truncate">SK BTMS</span>
+        </div>
+      </header>
+
+      <!-- Page content -->
+      <main class="flex-1 overflow-y-auto" style="background: #F5F7FA;">
+        {@render children()}
+      </main>
+    </div>
+
   </div>
 {/if}
