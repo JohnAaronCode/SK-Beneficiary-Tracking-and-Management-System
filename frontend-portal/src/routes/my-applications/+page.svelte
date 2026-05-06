@@ -61,14 +61,14 @@
 </script>
 
 <div class="space-y-5">
-	<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+	<div class="flex items-center justify-between">
 		<div>
-			<h1 class="text-xl sm:text-2xl font-bold text-slate-900">My Applications</h1>
+			<h1 class="text-2xl font-bold text-slate-900">My Applications</h1>
 			<p class="text-sm text-slate-500">Status of all your applications</p>
 		</div>
 		<a
 			href="/"
-			class="self-start sm:self-auto flex items-center gap-1.5 rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-600 transition hover:border-slate-300"
+			class="flex items-center gap-1.5 rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-600 transition hover:border-slate-300"
 		>
 			<ArrowLeft class="h-4 w-4" />
 			Programs
@@ -84,7 +84,9 @@
 			Loading...
 		</div>
 	{:else if error}
-		<div class="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+		<div
+			class="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700"
+		>
 			<AlertCircle class="h-4 w-4 shrink-0" />
 			{error}
 		</div>
@@ -106,13 +108,15 @@
 	{:else}
 		<div class="grid gap-4">
 			{#each applications as app}
-				<div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md">
-					<div class="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+				<div
+					class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md"
+				>
+					<div class="flex items-start justify-between gap-4">
 						<div class="min-w-0 flex-1">
 							<h3 class="font-semibold text-slate-900">{app.program_title}</h3>
 							<p class="mb-3 text-xs text-slate-400">{app.program_category}</p>
 
-							<div class="mb-3 grid grid-cols-1 xs:grid-cols-2 gap-x-6 gap-y-1.5 text-sm text-slate-600">
+							<div class="mb-3 grid grid-cols-2 gap-x-6 gap-y-1.5 text-sm text-slate-600">
 								<div>
 									<span class="text-xs text-slate-400">Full Name</span><br />{app.full_name}
 								</div>
@@ -132,7 +136,9 @@
 							</div>
 
 							{#if app.notes}
-								<div class="mt-3 flex items-start gap-2 rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+								<div
+									class="mt-3 flex items-start gap-2 rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-800"
+								>
 									<StickyNote class="mt-0.5 h-3.5 w-3.5 shrink-0" />
 									<span><strong>SK note:</strong> {app.notes}</span>
 								</div>
@@ -140,9 +146,11 @@
 						</div>
 
 						<!-- Status Badge -->
-						<div class="flex sm:flex-col items-start sm:items-end gap-2 sm:gap-0 sm:text-right shrink-0">
+						<div class="shrink-0 text-right">
 							<span
-								class="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium {statusBadge[app.status]}"
+								class="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium {statusBadge[
+									app.status
+								]}"
 							>
 								{#if app.status === 'pending'}
 									<Clock class="h-3.5 w-3.5" />
@@ -155,7 +163,7 @@
 								{/if}
 								{app.status.charAt(0).toUpperCase() + app.status.slice(1)}
 							</span>
-							<p class="sm:mt-1.5 text-xs leading-tight text-slate-400 sm:max-w-32">
+							<p class="mt-1.5 max-w-32 text-xs leading-tight text-slate-400">
 								{statusLabel[app.status]}
 							</p>
 						</div>

@@ -14,17 +14,7 @@ export function authenticate(req, res, next) {
 }
 
 export function requireAdmin(req, res, next) {
-  const role = req.user?.role;
-  if (role !== 'admin' && role !== 'staff') {
-    return res.status(403).json({ error: 'Access denied. Admin or Staff only.' });
-  }
-  next();
-}
-
-export function requireStrictAdmin(req, res, next) {
-  if (req.user?.role !== 'admin') {
-    return res.status(403).json({ error: 'Access denied. Admin only.' });
-  }
+  if (req.user?.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
   next();
 }
 
