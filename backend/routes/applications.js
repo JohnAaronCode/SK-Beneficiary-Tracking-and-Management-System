@@ -1,38 +1,10 @@
 import { Router } from 'express';
 import { query, queryOne, run } from '../db/database.js';
 import { authenticate, requireAdmin } from '../middleware/auth.js';
-import multer from 'multer';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
-import { existsSync, mkdirSync } from 'fs';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname  = dirname(__filename);
-
-const uploadsDir = join(__dirname, '../uploads');
-if (!existsSync(uploadsDir)) mkdirSync(uploadsDir, { recursive: true });
-
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, uploadsDir),
-  filename:    (req, file, cb) => {
-    const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
-    cb(null, `${unique}${path.extname(file.originalname)}`);
-  },
-});
-
-const upload = multer({
-  storage,
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB per file
-  fileFilter: (req, file, cb) => {
-    const allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'application/pdf'];
-    if (allowed.includes(file.mimetype)) cb(null, true);
-    else cb(new Error('Only images and PDF files are allowed'));
-  },
-});
 
 const router = Router();
 
+<<<<<<< HEAD
 // ── GET all applications (admin) ─────────────────────────────────────────────
 router.get('/', authenticate, requireAdmin, async (req, res) => {
   try {
@@ -67,24 +39,24 @@ router.get('/program/:programId', authenticate, requireAdmin, async (req, res) =
                LEFT JOIN users    u ON a.applicant_id = u.id
                LEFT JOIN programs p ON a.program_id   = p.id
                WHERE a.program_id = ?`;
+=======
+router.get('/program/:programId', authenticate, requireAdmin, async (req, res) => {
+  try {
+    const { status, search } = req.query;
+    let sql = `SELECT a.*, u.username FROM applications a
+      LEFT JOIN users u ON a.applicant_id = u.id WHERE a.program_id = ?`;
+>>>>>>> ae4f77d03b3ea0c1284ce9273f417c8f46a1cd72
     const params = [req.params.programId];
-
-    if (status) { sql += ' AND a.status = ?';                         params.push(status); }
-    if (search) {
-      sql += ' AND (a.full_name LIKE ? OR a.address LIKE ?)';
-      params.push(`%${search}%`, `%${search}%`);
-    }
-    if (from)   { sql += ' AND DATE(a.created_at) >= ?';              params.push(from); }
-    if (to)     { sql += ' AND DATE(a.created_at) <= ?';              params.push(to); }
-
+    if (status) { sql += ' AND a.status = ?'; params.push(status); }
+    if (search) { sql += ' AND (a.full_name LIKE ? OR a.address LIKE ?)'; params.push(`%${search}%`, `%${search}%`); }
     sql += ' ORDER BY a.created_at DESC';
     res.json(await query(sql, params));
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// ── GET my applications (applicant) ──────────────────────────────────────────
 router.get('/my', authenticate, async (req, res) => {
   try {
+<<<<<<< HEAD
     const apps = await query(
       `SELECT a.*, p.title as program_title, p.category as program_category,
          (SELECT COUNT(*) FROM application_requirements ar WHERE ar.application_id = a.id) as file_count
@@ -94,49 +66,60 @@ router.get('/my', authenticate, async (req, res) => {
        ORDER BY a.created_at DESC`,
       [req.user.id]
     );
+=======
+    const apps = await query(`SELECT a.*, p.title as program_title, p.category as program_category
+      FROM applications a LEFT JOIN programs p ON a.program_id = p.id
+      WHERE a.applicant_id = ? ORDER BY a.created_at DESC`, [req.user.id]);
+>>>>>>> ae4f77d03b3ea0c1284ce9273f417c8f46a1cd72
     res.json(apps);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// ── POST submit application ───────────────────────────────────────────────────
+router.get('/', authenticate, requireAdmin, async (req, res) => {
+  try {
+    const { status } = req.query;
+    let sql = `SELECT a.*, p.title as program_title FROM applications a
+      LEFT JOIN programs p ON a.program_id = p.id WHERE 1=1`;
+    const params = [];
+    if (status) { sql += ' AND a.status = ?'; params.push(status); }
+    sql += ' ORDER BY a.created_at DESC LIMIT 100';
+    res.json(await query(sql, params));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 router.post('/', authenticate, async (req, res) => {
   try {
     const { program_id, full_name, address, age, contact, barangay, requirements_submitted } = req.body;
-
     if (!program_id || !full_name || !address || !age || !contact)
       return res.status(400).json({ error: 'All required fields must be filled' });
 
     const program = await queryOne('SELECT * FROM programs WHERE id = ?', [program_id]);
-    if (!program)                    return res.status(404).json({ error: 'Program not found' });
-    if (program.status !== 'open')   return res.status(400).json({ error: 'Program is not open for registration' });
-    if (program.slots_used >= program.slots)
-                                     return res.status(400).json({ error: 'No more slots available' });
+    if (!program) return res.status(404).json({ error: 'Program not found' });
+    if (program.status !== 'open') return res.status(400).json({ error: 'Program is not open for registration' });
+    if (program.slots_used >= program.slots) return res.status(400).json({ error: 'No more slots available' });
 
     if (req.user.role === 'applicant') {
-      const existing = await queryOne(
-        'SELECT id FROM applications WHERE program_id = ? AND applicant_id = ?',
-        [program_id, req.user.id]
-      );
+      const existing = await queryOne('SELECT id FROM applications WHERE program_id=? AND applicant_id=?', [program_id, req.user.id]);
       if (existing) return res.status(400).json({ error: 'You already applied to this program' });
     }
 
     const result = await run(
-      `INSERT INTO applications
-         (program_id, applicant_id, full_name, address, age, contact, barangay, requirements_submitted)
-       VALUES (?,?,?,?,?,?,?,?)`,
+      'INSERT INTO applications (program_id, applicant_id, full_name, address, age, contact, barangay, requirements_submitted) VALUES (?,?,?,?,?,?,?,?)',
       [program_id, req.user.id, full_name, address, age, contact, barangay || null, requirements_submitted || null]
     );
+<<<<<<< HEAD
 
     // Return the new application ID so the frontend can upload files to it
+=======
+>>>>>>> ae4f77d03b3ea0c1284ce9273f417c8f46a1cd72
     res.json({ id: result.insertId, message: 'Application submitted successfully' });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// ── PATCH update status (admin) ───────────────────────────────────────────────
 router.patch('/:id/status', authenticate, requireAdmin, async (req, res) => {
   try {
     const { status, notes } = req.body;
-    if (!['approved', 'rejected', 'waitlist'].includes(status))
+    if (!['approved','rejected','waitlist'].includes(status))
       return res.status(400).json({ error: 'Invalid status' });
 
     const app = await queryOne('SELECT * FROM applications WHERE id = ?', [req.params.id]);
@@ -148,20 +131,13 @@ router.patch('/:id/status', authenticate, requireAdmin, async (req, res) => {
     );
 
     if (status === 'approved') {
-      const existing = await queryOne(
-        'SELECT id FROM beneficiaries WHERE application_id = ?',
-        [req.params.id]
-      );
+      const existing = await queryOne('SELECT id FROM beneficiaries WHERE application_id = ?', [req.params.id]);
       if (!existing) {
         await run(
-          `INSERT INTO beneficiaries (application_id, program_id, full_name, address, contact)
-           VALUES (?,?,?,?,?)`,
+          'INSERT INTO beneficiaries (application_id, program_id, full_name, address, contact) VALUES (?,?,?,?,?)',
           [req.params.id, app.program_id, app.full_name, app.address, app.contact]
         );
-        await run(
-          'UPDATE programs SET slots_used = slots_used + 1 WHERE id = ?',
-          [app.program_id]
-        );
+        await run('UPDATE programs SET slots_used = slots_used + 1 WHERE id = ?', [app.program_id]);
       }
     }
 
@@ -169,6 +145,7 @@ router.patch('/:id/status', authenticate, requireAdmin, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+<<<<<<< HEAD
 // ════════════════════════════════════════════════════════════════════════════
 //  REQUIREMENTS
 // ════════════════════════════════════════════════════════════════════════════
@@ -269,4 +246,6 @@ router.delete('/:id/requirements/:fileId', authenticate, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+=======
+>>>>>>> ae4f77d03b3ea0c1284ce9273f417c8f46a1cd72
 export default router;

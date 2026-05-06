@@ -68,8 +68,6 @@
             class="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
             style="color: rgba(255,255,255,0.3);" />
           <input
-            id="username"
-            name="username"
             bind:value={credential}
             placeholder="Username or Email"
             autocomplete="username"
@@ -87,8 +85,6 @@
             class="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
             style="color: rgba(255,255,255,0.3);" />
           <input
-            id="password"
-            name="password"
             bind:value={password}
             type={showPassword ? 'text' : 'password'}
             placeholder="Password"
