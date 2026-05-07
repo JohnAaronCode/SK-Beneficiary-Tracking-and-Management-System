@@ -1,6 +1,7 @@
+// routes/applications.js
 import { Router } from 'express';
 import { query, queryOne, run } from '../db/database.js';
-import { authenticate, requireAdmin } from '../middleware/auth.js';
+import { authenticate, requireAdmin, requireStaff } from '../middleware/auth.js';
 import multer from 'multer';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
@@ -12,16 +13,25 @@ const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, uploadsDir),
   filename:    (req, file, cb) => cb(null, `${Date.now()}-${Math.round(Math.random() * 1e9)}${file.originalname.match(/\.[^.]+$/)?.[0] || ''}`)
 });
-const upload = multer({ storage });
+const upload = multer({
+  storage,
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf'];
+    if (allowed.includes(file.mimetype)) cb(null, true);
+    else cb(new Error('Only images and PDF files are allowed'));
+  }
+});
 
 const router = Router();
 
-// ── GET all applications (admin) ──────────────────────────────────────────────
-router.get('/', authenticate, requireAdmin, async (req, res) => {
+// ── GET all applications (staff + admin) ─────────────────────────────────────
+router.get('/', authenticate, requireStaff, async (req, res) => {
   try {
     const { status, search, from, to } = req.query;
     let sql = `SELECT a.*, p.title as program_title,
-                 (SELECT COUNT(*) FROM application_requirements ar WHERE ar.application_id = a.id) as file_count
+                 (SELECT COUNT(*) FROM application_requirements ar WHERE ar.application_id = a.id) as file_count,
+                 (SELECT id FROM beneficiaries b WHERE b.application_id = a.id LIMIT 1) as beneficiary_id
                FROM applications a
                LEFT JOIN programs p ON a.program_id = p.id
                WHERE 1=1`;
@@ -40,12 +50,13 @@ router.get('/', authenticate, requireAdmin, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// ── GET applications by program (admin) ───────────────────────────────────────
-router.get('/program/:programId', authenticate, requireAdmin, async (req, res) => {
+// ── GET applications by program (staff + admin) ───────────────────────────────
+router.get('/program/:programId', authenticate, requireStaff, async (req, res) => {
   try {
     const { status, search, from, to } = req.query;
     let sql = `SELECT a.*, u.username, p.title as program_title,
-                 (SELECT COUNT(*) FROM application_requirements ar WHERE ar.application_id = a.id) as file_count
+                 (SELECT COUNT(*) FROM application_requirements ar WHERE ar.application_id = a.id) as file_count,
+                 (SELECT id FROM beneficiaries b WHERE b.application_id = a.id LIMIT 1) as beneficiary_id
                FROM applications a
                LEFT JOIN users    u ON a.applicant_id = u.id
                LEFT JOIN programs p ON a.program_id   = p.id
@@ -63,7 +74,8 @@ router.get('/my', authenticate, async (req, res) => {
   try {
     const apps = await query(
       `SELECT a.*, p.title as program_title, p.category as program_category,
-         (SELECT COUNT(*) FROM application_requirements ar WHERE ar.application_id = a.id) as file_count
+         (SELECT COUNT(*) FROM application_requirements ar WHERE ar.application_id = a.id) as file_count,
+         (SELECT id FROM beneficiaries b WHERE b.application_id = a.id LIMIT 1) as beneficiary_id
        FROM applications a
        LEFT JOIN programs p ON a.program_id = p.id
        WHERE a.applicant_id = ?
@@ -100,8 +112,8 @@ router.post('/', authenticate, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// ── PATCH update application status ───────────────────────────────────────────
-router.patch('/:id/status', authenticate, requireAdmin, async (req, res) => {
+// ── PATCH update application status (staff + admin) ───────────────────────────
+router.patch('/:id/status', authenticate, requireStaff, async (req, res) => {
   try {
     const { status, notes } = req.body;
     if (!['approved','rejected','waitlist'].includes(status))
@@ -115,18 +127,30 @@ router.patch('/:id/status', authenticate, requireAdmin, async (req, res) => {
       [status, notes || null, req.user.id, req.params.id]
     );
 
-    if (status === 'approved') {
-      const existing = await queryOne('SELECT id FROM beneficiaries WHERE application_id = ?', [req.params.id]);
-      if (!existing) {
-        await run(
-          'INSERT INTO beneficiaries (application_id, program_id, full_name, address, contact) VALUES (?,?,?,?,?)',
-          [req.params.id, app.program_id, app.full_name, app.address, app.contact]
-        );
-        await run('UPDATE programs SET slots_used = slots_used + 1 WHERE id = ?', [app.program_id]);
-      }
-    }
-
     res.json({ message: `Application ${status}` });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── POST mark application as received (staff + admin) ─────────────────────────
+router.post('/:id/receive', authenticate, requireStaff, async (req, res) => {
+  try {
+    const app = await queryOne('SELECT * FROM applications WHERE id = ?', [req.params.id]);
+    if (!app) return res.status(404).json({ error: 'Application not found' });
+
+    if (app.status !== 'approved')
+      return res.status(400).json({ error: 'Only approved applications can be marked as received' });
+
+    const existing = await queryOne('SELECT id FROM beneficiaries WHERE application_id = ?', [req.params.id]);
+    if (existing)
+      return res.status(400).json({ error: `${app.full_name} is already marked as received` });
+
+    await run(
+      'INSERT INTO beneficiaries (application_id, program_id, full_name, address, contact) VALUES (?,?,?,?,?)',
+      [req.params.id, app.program_id, app.full_name, app.address, app.contact]
+    );
+    await run('UPDATE programs SET slots_used = slots_used + 1 WHERE id = ?', [app.program_id]);
+
+    res.json({ message: `${app.full_name} has been marked as received and added to beneficiaries.` });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -178,7 +202,10 @@ router.post('/:id/requirements', authenticate, upload.array('files', 10), async 
     }
 
     res.json({ message: `${req.files.length} file(s) uploaded successfully` });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) {
+    if (e.message?.includes('Only images')) return res.status(400).json({ error: e.message });
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // ── DELETE a requirement file ──────────────────────────────────────────────────

@@ -1,4 +1,6 @@
 <script lang="ts">
+  import Download from 'lucide-svelte/icons/download';
+  import * as XLSX from 'xlsx';
   import { onMount } from 'svelte';
   import { apiFetch } from '$lib/api.js';
   import BarChart2 from 'lucide-svelte/icons/bar-chart-2';
@@ -22,11 +24,19 @@
   interface MonthlyRow { month: number; month_name: string; beneficiary_count: number; programs_active: number; }
   interface YearlyRow  { year: number; beneficiary_count: number; programs_count: number; }
   interface MonthlyReport { monthly: MonthlyRow[]; yearly: YearlyRow[]; year: number; }
+  interface BarangayInfo {
+    barangay_name?: string;
+    sk_chairperson?: string;
+    contact?: string;
+    address?: string;
+    municipality?: string;
+  }
 
   let report        = $state<Report | null>(null);
   let monthlyReport = $state<MonthlyReport | null>(null);
   let loading       = $state(true);
   let selectedYear  = $state(new Date().getFullYear());
+  let barangayInfo  = $state<BarangayInfo>({});
 
   const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
@@ -36,9 +46,10 @@
 
   async function loadAll() {
     loading = true;
-    [report, monthlyReport] = await Promise.all([
+    [report, monthlyReport, barangayInfo] = await Promise.all([
       apiFetch('/beneficiaries/reports/summary'),
-      apiFetch(`/beneficiaries/reports/monthly?year=${selectedYear}`)
+      apiFetch(`/beneficiaries/reports/monthly?year=${selectedYear}`),
+      apiFetch('/barangay-info'),
     ]);
     loading = false;
   }
@@ -56,14 +67,106 @@
   );
 
   let maxMonthCount = $derived(Math.max(...(monthGrid.map(m => m.count)), 1));
+
+  function exportReportToExcel() {
+    const wb = XLSX.utils.book_new();
+
+    // ── Header info rows ──────────────────────────────────────────────
+    const brgy   = barangayInfo.barangay_name  ?? 'Barangay';
+    const muni   = barangayInfo.municipality   ?? '';
+    const chair  = barangayInfo.sk_chairperson ?? '';
+    const addr   = barangayInfo.address        ?? '';
+    const now    = new Date().toLocaleDateString('en-PH', { year:'numeric', month:'long', day:'numeric' });
+
+    const headerRows = [
+      [`Sangguniang Kabataan — ${brgy}${muni ? ', ' + muni : ''}`],
+      [`SK Chairperson: ${chair}`],
+      [`Address: ${addr}`],
+      [`Report Date: ${now}`],
+      [],
+    ];
+
+    // ── Sheet 1: Per Program ──────────────────────────────────────────
+    if (report?.perProgram.length) {
+      const rows = [
+        ...headerRows,
+        ['BENEFICIARIES PER PROGRAM'],
+        ['Program', 'Category', 'Beneficiaries', 'Slots', '% Filled'],
+        ...report.perProgram.map(p => [
+          p.title,
+          p.category,
+          p.beneficiary_count,
+          p.slots,
+          p.slots > 0 ? Math.round(p.beneficiary_count / p.slots * 100) + '%' : '—',
+        ]),
+      ];
+      const ws = XLSX.utils.aoa_to_sheet(rows);
+      ws['!cols'] = [{ wch: 30 }, { wch: 20 }, { wch: 15 }, { wch: 10 }, { wch: 10 }];
+      XLSX.utils.book_append_sheet(wb, ws, 'Per Program');
+    }
+
+    // ── Sheet 2: Monthly Summary ──────────────────────────────────────
+    const monthRows = [
+      ...headerRows,
+      [`MONTHLY BENEFICIARY DISTRIBUTION — ${selectedYear}`],
+      ['Month', 'Beneficiaries', 'Programs Active'],
+      ...monthGrid.map(m => [m.name + ' ' + selectedYear, m.count, m.programs]),
+    ];
+    const wsMonth = XLSX.utils.aoa_to_sheet(monthRows);
+    wsMonth['!cols'] = [{ wch: 18 }, { wch: 15 }, { wch: 18 }];
+    XLSX.utils.book_append_sheet(wb, wsMonth, 'Monthly');
+
+    // ── Sheet 3: Most Assisted ────────────────────────────────────────
+    if (report?.mostAssisted.length) {
+      const rows = [
+        ...headerRows,
+        ['MOST ASSISTED INDIVIDUALS'],
+        ['#', 'Name', 'Address', 'Times Assisted'],
+        ...report.mostAssisted.map((r, i) => [i + 1, r.full_name, r.address, r.program_count]),
+      ];
+      const ws = XLSX.utils.aoa_to_sheet(rows);
+      ws['!cols'] = [{ wch: 5 }, { wch: 25 }, { wch: 35 }, { wch: 15 }];
+      XLSX.utils.book_append_sheet(wb, ws, 'Most Assisted');
+    }
+
+    // ── Sheet 4: Repeat Beneficiaries ────────────────────────────────
+    if (report?.repeatBeneficiaries.length) {
+      const rows = [
+        ...headerRows,
+        ['REPEAT BENEFIT RECIPIENTS'],
+        ['Name', 'Address', 'Times Assisted'],
+        ...report.repeatBeneficiaries.map(r => [r.full_name, r.address, r.times_assisted]),
+      ];
+      const ws = XLSX.utils.aoa_to_sheet(rows);
+      ws['!cols'] = [{ wch: 25 }, { wch: 35 }, { wch: 15 }];
+      XLSX.utils.book_append_sheet(wb, ws, 'Repeat Recipients');
+    }
+
+    XLSX.writeFile(wb, `SK_Report_${brgy.replace(/\s+/g,'_')}_${selectedYear}.xlsx`);
+  }
 </script>
 
 <div class="p-6 space-y-6">
 
   <!-- Header -->
-  <div>
-    <h1 class="text-2xl font-bold text-gray-900">Reports</h1>
-    <p class="text-gray-500 text-sm">Summary and analytics for all programs and beneficiaries</p>
+  <div class="flex items-start justify-between flex-wrap gap-3">
+    <div>
+      <h1 class="text-2xl font-bold text-gray-900">Reports</h1>
+      <p class="text-gray-500 text-sm">Summary and analytics for all programs and beneficiaries</p>
+      {#if barangayInfo.barangay_name}
+        <p class="text-xs text-gray-400 mt-0.5">
+          SK {barangayInfo.barangay_name}{barangayInfo.municipality ? ', ' + barangayInfo.municipality : ''}
+          {#if barangayInfo.sk_chairperson} · {barangayInfo.sk_chairperson}{/if}
+        </p>
+      {/if}
+    </div>
+    {#if report}
+      <button
+        onclick={exportReportToExcel}
+        class="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 transition">
+        <Download size={15}/> Export Full Report
+      </button>
+    {/if}
   </div>
 
   {#if loading}

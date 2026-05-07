@@ -24,20 +24,20 @@
 		slots_used: number;
 	}
 
-	let program = $state<Program | null>(null);
-	let loading = $state(true);
+	let program    = $state<Program | null>(null);
+	let loading    = $state(true);
 	let submitting = $state(false);
-	let error = $state('');
-	let success = $state(false);
+	let error      = $state('');
+	let success    = $state(false);
 	let attachedFiles = $state<File[]>([]);
 
 	let form = $state({
-		full_name: '',
-		address: '',
-		age: '',
-		contact: '',
-		barangay: '',
-		requirements_submitted: ''
+		full_name:               '',
+		address:                 '',
+		age:                     '',
+		contact:                 '',
+		barangay:                '',
+		requirements_submitted:  ''
 	});
 
 	let requirementsValid = $derived(
@@ -50,18 +50,18 @@
 			return;
 		}
 		try {
-			program = await apiFetch(`/programs/${page.params.id}`);
-			form.full_name = $user?.full_name ?? '';
+			program           = await apiFetch(`/programs/${page.params.id}`);
+			form.full_name    = $user?.full_name ?? '';
 		} catch (e) {
-			error = e instanceof Error ? e.message : 'Error';
+			error = e instanceof Error ? e.message : 'Error loading program';
 		} finally {
 			loading = false;
 		}
 	});
 
 	function handleContactInput(e: Event) {
-		const input = e.currentTarget as HTMLInputElement;
-		input.value = input.value.replace(/\D/g, '').slice(0, 11);
+		const input  = e.currentTarget as HTMLInputElement;
+		input.value  = input.value.replace(/\D/g, '').slice(0, 11);
 		form.contact = input.value;
 	}
 
@@ -69,7 +69,7 @@
 		const input = e.currentTarget as HTMLInputElement;
 		if (input.files) {
 			attachedFiles = [...attachedFiles, ...Array.from(input.files)];
-			input.value = '';
+			input.value   = '';
 		}
 	}
 
@@ -78,8 +78,8 @@
 	}
 
 	function formatFileSize(bytes: number) {
-		if (bytes < 1024) return bytes + ' B';
-		if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+		if (bytes < 1024)            return bytes + ' B';
+		if (bytes < 1024 * 1024)     return (bytes / 1024).toFixed(1) + ' KB';
 		return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
 	}
 
@@ -90,6 +90,12 @@
 	async function submitApplication() {
 		error = '';
 
+		if (!form.full_name.trim())  { error = 'Full name is required.'; return; }
+		if (!form.address.trim())    { error = 'Address is required.'; return; }
+		if (!form.barangay.trim())   { error = 'Barangay is required.'; return; }
+		if (!form.age)               { error = 'Age is required.'; return; }
+		if (!form.contact.trim())    { error = 'Contact number is required.'; return; }
+
 		if (!form.requirements_submitted.trim() && attachedFiles.length === 0) {
 			error = 'Please provide requirements — enter text or attach at least one file.';
 			return;
@@ -97,34 +103,33 @@
 
 		submitting = true;
 		try {
-			// Step 1: Submit the application JSON, get back the new application ID
+			// Step 1: Submit application data — get back the new application ID
 			const result = await apiFetch('/applications', {
 				method: 'POST',
 				body: {
-					program_id: page.params.id,
-					full_name: form.full_name,
-					address: form.address,
-					age: parseInt(form.age),
-					contact: form.contact,
-					barangay: form.barangay,
-					requirements_submitted: form.requirements_submitted
+					program_id:              page.params.id,
+					full_name:               form.full_name,
+					address:                 form.address,
+					age:                     parseInt(form.age),
+					contact:                 form.contact,
+					barangay:                form.barangay,
+					requirements_submitted:  form.requirements_submitted
 				}
 			});
 
-			// Step 2: Upload attached files if any, using the returned application ID
+			// Step 2: Upload attached files using the returned application ID
 			if (attachedFiles.length > 0) {
-				const t = get(token);
+				const t  = get(token);
 				const fd = new FormData();
 				for (const file of attachedFiles) {
 					fd.append('files', file);
 				}
 
-				// Do NOT set Content-Type header — browser sets it automatically
-				// with the correct multipart boundary
+				// Do NOT manually set Content-Type — browser adds multipart boundary automatically
 				const res = await fetch(`${API}/applications/${result.id}/requirements`, {
-					method: 'POST',
+					method:  'POST',
 					headers: t ? { Authorization: `Bearer ${t}` } : {},
-					body: fd
+					body:    fd
 				});
 
 				if (!res.ok) {
@@ -135,7 +140,7 @@
 
 			success = true;
 		} catch (e) {
-			error = e instanceof Error ? e.message : 'Error';
+			error = e instanceof Error ? e.message : 'Submission failed. Please try again.';
 		} finally {
 			submitting = false;
 		}
@@ -151,6 +156,7 @@
 			></div>
 			Loading...
 		</div>
+
 	{:else if success}
 		<div class="rounded-2xl border border-slate-200 bg-white px-6 sm:px-8 py-12 sm:py-14 text-center shadow-sm">
 			<div class="mb-4 flex justify-center">
@@ -160,8 +166,8 @@
 			</div>
 			<h2 class="mb-2 text-xl font-bold text-slate-900">Application Submitted!</h2>
 			<p class="mx-auto mb-6 max-w-xs text-sm text-slate-500">
-				Your application has been successfully submitted. You can check the status of your
-				application in the "My Applications" section. Thank you for applying!
+				Your application has been successfully submitted. You can check the status in the
+				"My Applications" section. Thank you for applying!
 			</p>
 			<div class="flex flex-col sm:flex-row justify-center gap-3">
 				<a
@@ -171,7 +177,7 @@
 					onmouseenter={(e) => ((e.currentTarget as HTMLElement).style.background = '#0d2756')}
 					onmouseleave={(e) => ((e.currentTarget as HTMLElement).style.background = '#0A1F44')}
 				>
-					View Applications
+					View My Applications
 				</a>
 				<a
 					href="/"
@@ -181,6 +187,7 @@
 				</a>
 			</div>
 		</div>
+
 	{:else}
 		<!-- Program Info Banner -->
 		{#if program}
@@ -214,21 +221,13 @@
 			</p>
 
 			<form
-				onsubmit={(e) => {
-					e.preventDefault();
-					submitApplication();
-				}}
+				onsubmit={(e) => { e.preventDefault(); submitApplication(); }}
 				class="space-y-4"
 			>
 				<!-- Full Name -->
 				<div>
 					<label class="label" for="fn">Full Name *</label>
-					<input
-						id="fn"
-						bind:value={form.full_name}
-						class="input"
-						required
-					/>
+					<input id="fn" bind:value={form.full_name} class="input" required />
 				</div>
 
 				<!-- Age + Contact -->
@@ -246,10 +245,7 @@
 						/>
 					</div>
 					<div>
-						<label class="label" for="contact">
-							Contact Number *
-							<span class="ml-auto font-normal text-slate-400"></span>
-						</label>
+						<label class="label" for="contact">Contact Number *</label>
 						<input
 							id="contact"
 							bind:value={form.contact}
@@ -265,41 +261,28 @@
 				<!-- Barangay -->
 				<div>
 					<label class="label" for="barangay">Barangay *</label>
-					<input
-						id="barangay"
-						bind:value={form.barangay}
-						class="input"
-						required
-					/>
+					<input id="barangay" bind:value={form.barangay} class="input" required />
 				</div>
 
 				<!-- Address -->
 				<div>
-					<label class="label" for="address">Address *</label>
-					<input
-						id="address"
-						bind:value={form.address}
-						class="input"
-						required
-					/>
+					<label class="label" for="address">Complete Address *</label>
+					<input id="address" bind:value={form.address} class="input" required />
 				</div>
 
 				<!-- Requirements -->
 				<div>
-					<label class="label" for="req">
-						Requirements *
-					</label>
-
+					<label class="label" for="req">Requirements *</label>
 					<div
 						class="overflow-hidden rounded-lg border transition focus-within:border-slate-400"
-						class:border-slate-200={requirementsValid}
-						class:border-red-300={!requirementsValid && error !== ''}
+						class:border-slate-200={!error || requirementsValid}
+						class:border-red-300={!!error && !requirementsValid}
 					>
+						<!-- Text area for listing requirements -->
 						<textarea
 							id="req"
 							bind:value={form.requirements_submitted}
 							rows={3}
-							placeholder="List down the requirements you are submitting (e.g. Barangay Clearance, Birth Certificate...)"
 							class="w-full resize-none border-none px-3 py-2.5 text-sm text-slate-800 outline-none placeholder:text-slate-400"
 						></textarea>
 
@@ -309,9 +292,7 @@
 						{#if attachedFiles.length > 0}
 							<ul class="flex flex-col gap-1 px-3 py-2">
 								{#each attachedFiles as file, i}
-									<li
-										class="flex items-center justify-between rounded-md bg-slate-50 px-2.5 py-1.5"
-									>
+									<li class="flex items-center justify-between rounded-md bg-slate-50 px-2.5 py-1.5">
 										<div class="flex min-w-0 items-center gap-2">
 											{#if isImage(file)}
 												<ImageIcon size={13} class="shrink-0 text-slate-400" />
@@ -319,9 +300,7 @@
 												<FileText size={13} class="shrink-0 text-slate-400" />
 											{/if}
 											<span class="truncate text-xs text-slate-700">{file.name}</span>
-											<span class="shrink-0 text-xs text-slate-400"
-												>{formatFileSize(file.size)}</span
-											>
+											<span class="shrink-0 text-xs text-slate-400">{formatFileSize(file.size)}</span>
 										</div>
 										<button
 											type="button"
@@ -336,7 +315,7 @@
 							<div class="border-t border-slate-100"></div>
 						{/if}
 
-						<!-- Toolbar -->
+						<!-- Attach file button -->
 						<div class="flex items-center px-3 py-2">
 							<label
 								class="flex cursor-pointer items-center gap-1.5 text-xs text-slate-400 transition hover:text-slate-600"
@@ -356,6 +335,7 @@
 					</div>
 				</div>
 
+				<!-- Error message -->
 				{#if error}
 					<div
 						class="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700"
@@ -365,6 +345,7 @@
 					</div>
 				{/if}
 
+				<!-- Actions -->
 				<div class="flex flex-col-reverse sm:flex-row gap-3 pt-1">
 					<a
 						href="/"
@@ -375,6 +356,7 @@
 					</a>
 					<button
 						type="submit"
+						disabled={submitting}
 						class="flex flex-1 items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-medium text-white transition disabled:cursor-not-allowed disabled:opacity-60"
 						style="background: #0A1F44;"
 						onmouseenter={(e) => {
@@ -382,7 +364,6 @@
 								(e.currentTarget as HTMLElement).style.background = '#0d2756';
 						}}
 						onmouseleave={(e) => ((e.currentTarget as HTMLElement).style.background = '#0A1F44')}
-						disabled={submitting}
 					>
 						{#if submitting}
 							<Loader2 class="h-4 w-4 animate-spin" />
@@ -391,13 +372,6 @@
 							Submit Application
 						{/if}
 					</button>
-					<a
-						href="/"
-						class="flex items-center gap-1.5 rounded-lg border border-slate-200 px-4 py-2.5 text-sm text-slate-600 transition hover:border-slate-300"
-					>
-						<ArrowLeft class="h-4 w-4" />
-						Back
-					</a>
 				</div>
 			</form>
 		</div>

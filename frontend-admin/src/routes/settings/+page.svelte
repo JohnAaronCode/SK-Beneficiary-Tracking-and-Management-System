@@ -359,26 +359,23 @@
         <div class="space-y-4">
           <div>
             <label class="label" for="add_fn">Full Name *</label>
-            <input id="add_fn" bind:value={userForm.full_name} class="input" placeholder="e.g. Juan Dela Cruz" required />
+            <input id="add_fn" bind:value={userForm.full_name} class="input" required />
           </div>
           <div>
             <label class="label" for="add_un">Username *</label>
-            <input id="add_un" bind:value={userForm.username} class="input" placeholder="e.g. jdelacruz" required />
+            <input id="add_un" bind:value={userForm.username} class="input" required />
           </div>
           <div>
             <label class="label" for="add_em">
               <span class="flex items-center gap-1.5"><Mail size={13} class="text-gray-400" /> Email Address *</span>
             </label>
-            <input id="add_em" type="email" bind:value={userForm.email} class="input" placeholder="e.g. juan@gmail.com" required />
-            <p class="text-xs text-gray-400 mt-1 flex items-center gap-1">
-              <Mail size={11} /> Used to uniquely identify the officer and send login credentials.
-            </p>
+            <input id="add_em" type="email" bind:value={userForm.email} class="input" required />
           </div>
           <div>
             <label class="label" for="add_pw">Password *</label>
             <div class="relative">
               <input id="add_pw" type={showPassword ? 'text' : 'password'}
-                bind:value={userForm.password} class="input pr-10" placeholder="Min. 6 characters" required />
+                bind:value={userForm.password} class="input pr-10" required />
               <button type="button" onclick={() => showPassword = !showPassword}
                 class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
                 {#if showPassword}<EyeOff size={16} />{:else}<Eye size={16} />{/if}
@@ -459,16 +456,13 @@
           </div>
           <div>
             <label class="label" for="edit_un">Username *</label>
-            <input id="edit_un" bind:value={editForm.username} class="input" placeholder="e.g. jdelacruz" required />
+            <input id="edit_un" bind:value={editForm.username} class="input" required />
           </div>
           <div>
             <label class="label" for="edit_em">
               <span class="flex items-center gap-1.5"><Mail size={13} class="text-gray-400" /> Email Address *</span>
             </label>
-            <input id="edit_em" type="email" bind:value={editForm.email} class="input" placeholder="e.g. juan@gmail.com" required />
-            <p class="text-xs text-gray-400 mt-1 flex items-center gap-1">
-              <Mail size={11} /> Used to uniquely identify this officer across the system.
-            </p>
+            <input id="edit_em" type="email" bind:value={editForm.email} class="input" required />
           </div>
           <div>
             <label class="label flex items-center gap-1.5">
@@ -509,7 +503,7 @@
             </label>
             <div class="relative">
               <input id="edit_pw" type={editShowPassword ? 'text' : 'password'}
-                bind:value={editForm.password} class="input pr-10" placeholder="Min. 6 characters" />
+                bind:value={editForm.password} class="input pr-10" />
               <button type="button" onclick={() => editShowPassword = !editShowPassword}
                 class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
                 {#if editShowPassword}<EyeOff size={16} />{:else}<Eye size={16} />{/if}
