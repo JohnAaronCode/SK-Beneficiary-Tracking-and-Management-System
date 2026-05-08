@@ -313,93 +313,95 @@
     </div>
   {/if}
 
-  <!-- ── PROGRAM LIST ─────────────────────────────────────────────────────── -->
-  {#if loading}
-    <div class="flex items-center gap-2 text-slate-400 text-sm py-12">
-      <div class="w-4 h-4 border-2 border-slate-200 border-t-blue-500 rounded-full animate-spin"></div>
-      Loading programs...
-    </div>
+ <!-- ── PROGRAM LIST ─────────────────────────────────────────────────────── -->
+{#if loading}
+  <div class="flex items-center gap-2 text-slate-400 text-sm py-12">
+    <div class="w-4 h-4 border-2 border-slate-200 border-t-blue-500 rounded-full animate-spin"></div>
+    Loading programs...
+  </div>
 
-  {:else if programs.length === 0}
-    <div class="bg-white border border-slate-200 rounded-2xl text-center py-16 shadow-sm">
-      <FolderOpen size={36} class="mx-auto mb-3 text-slate-300" />
-      <p class="text-slate-400 font-medium text-sm">No programs yet.</p>
-      <p class="text-slate-300 text-xs mt-1">Click "New Program" to get started.</p>
-    </div>
+{:else if programs.length === 0}
+  <div class="bg-white border border-slate-200 rounded-2xl text-center py-16 shadow-sm">
+    <FolderOpen size={36} class="mx-auto mb-3 text-slate-300" />
+    <p class="text-slate-400 font-medium text-sm">No programs yet.</p>
+    <p class="text-slate-300 text-xs mt-1">Click "New Program" to get started.</p>
+  </div>
 
-  {:else}
-    <div class="grid gap-3">
-      {#each programs as p}
-        {@const cfg = statusConfig[p.status] ?? statusConfig.closed}
-        <div class="bg-white border border-slate-200 rounded-2xl px-5 py-4 hover:shadow-md hover:border-slate-300 transition-all">
-          <div class="flex items-start justify-between gap-4">
+{:else}
+  <div class="grid gap-3">
+    {#each programs as p}
+      {@const cfg = statusConfig[p.status] ?? statusConfig.closed}
+      <div class="bg-white border border-slate-200 rounded-2xl px-5 py-4 hover:shadow-md hover:border-slate-300 transition-all">
+        <div class="flex items-start justify-between gap-4">
 
-            <!-- Program Info -->
-            <div class="flex-1 min-w-0">
-              <div class="flex items-center gap-2 flex-wrap mb-1">
-                <h3 class="font-semibold text-slate-900 text-sm">{p.title}</h3>
-                <span class="text-[11px] font-medium px-2 py-0.5 rounded-full {cfg.classes}">{cfg.label}</span>
-                <span class="text-[11px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full border border-slate-200">{p.category}</span>
-              </div>
-              <p class="text-slate-400 text-xs mb-3 truncate">{p.description || 'No description provided'}</p>
-              <!-- Slot and application summary -->
-              <div class="flex gap-4 text-xs">
-                <span class="text-slate-400">Slots: <strong class="text-slate-700">{p.slots_used}/{p.slots}</strong></span>
-                <span class="text-slate-400">Pending: <strong class="text-amber-600">{p.pending_count}</strong></span>
-                <span class="text-slate-400">Approved: <strong class="text-emerald-600">{p.approved_count}</strong></span>
-              </div>
+          <!-- Program Info -->
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2 flex-wrap mb-1">
+              <h3 class="font-semibold text-slate-900 text-sm">{p.title}</h3>
+              <span class="text-[11px] font-medium px-2 py-0.5 rounded-full {cfg.classes}">{cfg.label}</span>
+              <span class="text-[11px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full border border-slate-200">{p.category}</span>
+            </div>
+            <p class="text-slate-400 text-xs mb-3 truncate">{p.description || 'No description provided'}</p>
+            
+            <!-- Slot and application summary -->
+            <div class="flex gap-4 text-xs">
+              <span class="text-slate-400">Slots: <strong class="text-slate-700">{p.slots_used}/{p.slots}</strong></span>
+              <span class="text-slate-400">Pending: <strong class="text-amber-600">{p.pending_count}</strong></span>
+              <span class="text-slate-400">Approved: <strong class="text-emerald-600">{p.approved_count}</strong></span>
             </div>
 
-            <!-- Program Actions -->
-            <div class="flex gap-1.5 shrink-0 flex-wrap justify-end items-center">
+          </div>
 
-              <!-- Toggle open/closed based on current status -->
-              {#if p.status === 'draft' || p.status === 'closed'}
-                <button
-                  onclick={() => setStatus(p.id, 'open')}
-                  class="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 transition"
-                >
-                  <ToggleLeft size={13} /> Open
-                </button>
-              {/if}
-              {#if p.status === 'open'}
-                <button
-                  onclick={() => setStatus(p.id, 'closed')}
-                  class="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 bg-slate-50 border border-slate-200 hover:bg-slate-100 transition"
-                >
-                  <ToggleRight size={13} /> Close
-                </button>
-              {/if}
+          <!-- Program Actions -->
+          <div class="flex gap-1.5 shrink-0 flex-wrap justify-end items-center">
 
-              <!-- View applicants for this program -->
-              <a
-                href="/applications?program={p.id}"
-                class="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-600 bg-slate-50 border border-slate-200 hover:bg-slate-100 transition"
-              >
-                <ClipboardList size={12} /> Applicants
-              </a>
-
-              <!-- Edit program -->
+            <!-- Toggle open/closed based on current status -->
+            {#if p.status === 'draft' || p.status === 'closed'}
               <button
-                onclick={() => openEdit(p)}
-                class="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-blue-600 bg-blue-50 border border-blue-200 hover:bg-blue-100 transition"
+                onclick={() => setStatus(p.id, 'open')}
+                class="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 transition"
               >
-                <Pencil size={12} /> Edit
+                <ToggleLeft size={13} /> Open
               </button>
-
-              <!-- Delete program -->
+            {/if}
+            {#if p.status === 'open'}
               <button
-                onclick={() => deleteProgram(p.id)}
-                class="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-red-600 bg-red-50 border border-red-200 hover:bg-red-100 transition"
+                onclick={() => setStatus(p.id, 'closed')}
+                class="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 bg-slate-50 border border-slate-200 hover:bg-slate-100 transition"
               >
-                <Trash2 size={12} /> Delete
+                <ToggleRight size={13} /> Close
               </button>
+            {/if}
 
-            </div>
+            <!-- View applicants for this program -->
+            <a
+              href="/applications?program={p.id}"
+              class="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-600 bg-slate-50 border border-slate-200 hover:bg-slate-100 transition"
+            >
+              <ClipboardList size={12} /> Applicants
+            </a>
+
+            <!-- Edit program -->
+            <button
+              onclick={() => openEdit(p)}
+              class="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-blue-600 bg-blue-50 border border-blue-200 hover:bg-blue-100 transition"
+            >
+              <Pencil size={12} /> Edit
+            </button>
+
+            <!-- Delete program -->
+            <button
+              onclick={() => deleteProgram(p.id)}
+              class="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-red-600 bg-red-50 border border-red-200 hover:bg-red-100 transition"
+            >
+              <Trash2 size={12} /> Delete
+            </button>
+
           </div>
         </div>
-      {/each}
-    </div>
-  {/if}
+      </div>
+    {/each}
+  </div>
+{/if}
 
 </div>
