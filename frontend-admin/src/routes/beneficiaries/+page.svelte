@@ -22,6 +22,7 @@
   import ChevronRight      from 'lucide-svelte/icons/chevron-right';
   import FileSpreadsheet   from 'lucide-svelte/icons/file-spreadsheet';
   import CheckCircle       from 'lucide-svelte/icons/check-circle';
+  import Trash2            from 'lucide-svelte/icons/trash-2';
 
   interface Beneficiary {
     id: string | number;
@@ -82,6 +83,13 @@
   let profileData    = $state<ProfileDetail | null>(null);
   let profileLoading = $state(false);
 
+  // ── Delete confirm ───────────────────────────────────────────────────────
+  let showDeleteConfirm   = $state(false);
+  let deleteTarget        = $state<Beneficiary | null>(null);
+  let deleteLoading       = $state(false);
+  let globalSuccess       = $state('');
+  let globalError         = $state('');
+
   // ── Manual encode ────────────────────────────────────────────────────────
   let showManualForm = $state(false);
   let manualForm     = $state({ full_name:'', address:'', age:'', contact:'', barangay:'', notes:'', program_id:'' });
@@ -104,7 +112,7 @@
   onMount(async () => {
     [beneficiaries, programs] = await Promise.all([
       apiFetch('/beneficiaries'),
-      apiFetch('/programs')
+      apiFetch('/programs'),
     ]);
     loading = false;
     const tabParam = page.url.searchParams.get('tab');
@@ -138,6 +146,31 @@
   }
   function closeProfile() { showProfile = false; profileData = null; }
 
+  // ── Delete ───────────────────────────────────────────────────────────────
+  function confirmDelete(b: Beneficiary) {
+    deleteTarget      = b;
+    showDeleteConfirm = true;
+  }
+
+  async function executeDelete() {
+    if (!deleteTarget) return;
+    deleteLoading = true;
+    try {
+      await apiFetch(`/beneficiaries/${deleteTarget.id}`, { method: 'DELETE' });
+      globalSuccess = `${deleteTarget.full_name} has been removed from beneficiaries.`;
+      showDeleteConfirm = false;
+      deleteTarget      = null;
+      await reloadBeneficiaries();
+      setTimeout(() => globalSuccess = '', 4000);
+    } catch (e) {
+      globalError = e instanceof Error ? e.message : 'Failed to delete beneficiary';
+      showDeleteConfirm = false;
+      setTimeout(() => globalError = '', 4000);
+    } finally {
+      deleteLoading = false;
+    }
+  }
+
   // ── Export ───────────────────────────────────────────────────────────────
   function exportProgram(programTitle: string, items: Beneficiary[]) {
     const rows = items.map((b, i) => ({
@@ -146,7 +179,7 @@
       'Address':     b.address,
       'Age':         b.age || '—',
       'Contact':     b.contact,
-      'Received At': b.received_at ? new Date(b.received_at).toLocaleDateString('en-PH') : ''
+      'Received At': b.received_at ? new Date(b.received_at).toLocaleDateString('en-PH') : '',
     }));
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
@@ -189,8 +222,8 @@
           age:        parseInt(manualForm.age) || 0,
           contact:    manualForm.contact,
           barangay:   manualForm.barangay,
-          notes:      manualForm.notes
-        }
+          notes:      manualForm.notes,
+        },
       });
       manualSuccess = res.message;
       if (res.warning) manualWarning = res.warning;
@@ -207,7 +240,7 @@
   function downloadTemplate() {
     const template = [
       { 'Full Name': 'Juan Dela Cruz', Address: 'Blk 1 Lot 2, Sample St., Sto. Nino', Age: 18, Contact: '09123456789' },
-      { 'Full Name': 'Maria Santos',   Address: 'Blk 3 Lot 4, Sample St., Sto. Nino', Age: 20, Contact: '09987654321' }
+      { 'Full Name': 'Maria Santos',   Address: 'Blk 3 Lot 4, Sample St., Sto. Nino', Age: 20, Contact: '09987654321' },
     ];
     const ws = XLSX.utils.json_to_sheet(template);
     const wb = XLSX.utils.book_new();
@@ -252,7 +285,7 @@
     try {
       const res = await apiFetch('/beneficiaries/bulk-import', {
         method: 'POST',
-        body: { program_id: importProgramId, beneficiaries: importPreview }
+        body: { program_id: importProgramId, beneficiaries: importPreview },
       });
       importSuccess  = res.message;
       importWarnings = res.warnings     || [];
@@ -304,24 +337,49 @@
   );
 </script>
 
-<!-- ══════════════════════════════════════════════════════════════════════════
-     PROFILE MODAL
-     ══════════════════════════════════════════════════════════════════════════ -->
+<!-- ══ DELETE CONFIRMATION MODAL ═════════════════════════════════════════════ -->
+{#if showDeleteConfirm && deleteTarget}
+  <div class="fixed inset-0 z-50 flex items-center justify-center p-4"
+    style="background: rgba(10,31,68,0.5); backdrop-filter: blur(2px);">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+      <div class="px-5 pt-6 pb-4 text-center">
+        <div class="w-12 h-12 rounded-full bg-red-50 border border-red-100 flex items-center justify-center mx-auto mb-4">
+          <Trash2 size={20} class="text-red-500" />
+        </div>
+        <h2 class="text-base font-bold text-slate-900">Remove Beneficiary?</h2>
+        <p class="text-sm text-slate-500 mt-1.5">
+          You are about to remove
+          <span class="font-semibold text-slate-700">{deleteTarget.full_name}</span>
+          from the beneficiaries list. This action cannot be undone.
+        </p>
+      </div>
+      <div class="flex gap-2 px-5 pb-6">
+        <button onclick={executeDelete} disabled={deleteLoading}
+          class="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white bg-red-600 hover:bg-red-700 disabled:opacity-60 transition">
+          {deleteLoading ? 'Removing...' : 'Yes, Remove'}
+        </button>
+        <button onclick={() => { showDeleteConfirm = false; deleteTarget = null; }}
+          class="flex-1 py-2.5 rounded-xl text-sm font-medium text-slate-600 border border-slate-200 hover:bg-slate-50 transition">
+          Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- ══ PROFILE MODAL ══════════════════════════════════════════════════════════ -->
 {#if showProfile}
-  <div
-    class="fixed inset-0 z-50 flex items-center justify-center p-4"
+  <div class="fixed inset-0 z-50 flex items-center justify-center p-4"
     style="background: rgba(0,0,0,0.45); backdrop-filter: blur(3px);"
     role="button" tabindex="-1"
     onclick={closeProfile}
-    onkeydown={(e) => e.key === 'Escape' && closeProfile()}
-  >
-    <div
-      role="dialog" aria-modal="true" tabindex="-1"
+    onkeydown={(e) => e.key === 'Escape' && closeProfile()}>
+    <div role="dialog" aria-modal="true" tabindex="-1"
       class="relative bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col overflow-hidden"
       style="max-height: 88vh;"
       onclick={(e) => e.stopPropagation()}
-      onkeydown={(e) => e.stopPropagation()}
-    >
+      onkeydown={(e) => e.stopPropagation()}>
+
       <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
         <h2 class="font-bold text-gray-900 text-base">Beneficiary Profile</h2>
         <button onclick={closeProfile} class="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 transition">
@@ -412,9 +470,7 @@
   </div>
 {/if}
 
-<!-- ══════════════════════════════════════════════════════════════════════════
-     MAIN PAGE
-     ══════════════════════════════════════════════════════════════════════════ -->
+<!-- ══ MAIN PAGE ══════════════════════════════════════════════════════════════ -->
 <div class="space-y-5 p-4 sm:p-6">
 
   <!-- Header -->
@@ -427,41 +483,43 @@
       <div class="flex items-center gap-2">
         <button
           class="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold text-blue-700 bg-blue-50 border border-blue-200 hover:bg-blue-100 transition"
-          onclick={() => { showImportForm = !showImportForm; showManualForm = false; }}
-        >
+          onclick={() => { showImportForm = !showImportForm; showManualForm = false; }}>
           <Upload size={15} /> Import Excel
         </button>
         <button
           class="btn-primary flex items-center gap-1.5"
-          onclick={() => { showManualForm = !showManualForm; showImportForm = false; }}
-        >
+          onclick={() => { showManualForm = !showManualForm; showImportForm = false; }}>
           <PenLine size={15} /> Manual Encode
         </button>
       </div>
     {/if}
   </div>
 
+  <!-- Global alerts -->
+  {#if globalSuccess}
+    <div class="bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-3 rounded-xl text-sm">{globalSuccess}</div>
+  {/if}
+  {#if globalError}
+    <div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">{globalError}</div>
+  {/if}
+
   <!-- Tabs -->
   <div class="flex border-b border-gray-200">
-    <button
-      onclick={() => { activeTab = 'list'; }}
+    <button onclick={() => { activeTab = 'list'; }}
       class="flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors
-             {activeTab === 'list' ? 'border-[#0A1F44] text-[#0A1F44]' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}"
-    >
+             {activeTab === 'list' ? 'border-[#0A1F44] text-[#0A1F44]' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}">
       <List size={15} /> List view
     </button>
-    <button
-      onclick={() => { activeTab = 'search'; }}
+    <button onclick={() => { activeTab = 'search'; }}
       class="flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors
-             {activeTab === 'search' ? 'border-[#0A1F44] text-[#0A1F44]' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}"
-    >
+             {activeTab === 'search' ? 'border-[#0A1F44] text-[#0A1F44]' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}">
       <History size={15} /> Search / History
     </button>
   </div>
 
   {#if activeTab === 'list'}
 
-    <!-- ── EXCEL IMPORT FORM ─────────────────────────────────────────────── -->
+    <!-- ── EXCEL IMPORT FORM ──────────────────────────────────────────────── -->
     {#if showImportForm}
       <div class="card border-2 border-blue-200 bg-blue-50/30">
         <div class="mb-4 flex items-center justify-between">
@@ -505,12 +563,10 @@
           </div>
           <div>
             <label class="label" for="imp-file">Excel File (.xlsx / .xls) *</label>
-            <input
-              id="imp-file" type="file" accept=".xlsx,.xls"
+            <input id="imp-file" type="file" accept=".xlsx,.xls"
               bind:this={fileInput}
               onchange={handleFileUpload}
-              class="block w-full text-sm text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 border border-slate-200 rounded-xl px-2 py-1.5 bg-slate-50 cursor-pointer"
-            />
+              class="block w-full text-sm text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 border border-slate-200 rounded-xl px-2 py-1.5 bg-slate-50 cursor-pointer" />
           </div>
         </div>
 
@@ -558,11 +614,9 @@
         {/if}
 
         <div class="flex gap-3">
-          <button
-            class="btn-primary flex flex-1 items-center justify-center gap-2"
+          <button class="btn-primary flex flex-1 items-center justify-center gap-2"
             onclick={submitImport}
-            disabled={importLoading || importPreview.length === 0 || !importProgramId}
-          >
+            disabled={importLoading || importPreview.length === 0 || !importProgramId}>
             <Upload size={15} /> {importLoading ? 'Importing...' : `Import ${importPreview.length > 0 ? importPreview.length + ' records' : ''}`}
           </button>
           <button class="btn-ghost" onclick={closeImport}>Close</button>
@@ -611,14 +665,12 @@
           </div>
           <div>
             <label class="label" for="mcontact">Contact Number *</label>
-            <input
-              id="mcontact" bind:value={manualForm.contact} class="input"
+            <input id="mcontact" bind:value={manualForm.contact} class="input"
               type="tel" inputmode="numeric" pattern="[0-9]*" maxlength="11"
               oninput={(e) => {
                 const t = e.target as HTMLInputElement;
                 manualForm.contact = t.value.replace(/[^0-9]/g, '').slice(0, 11);
-              }}
-            />
+              }} />
           </div>
           <div>
             <label class="label" for="mage">Age *</label>
@@ -704,10 +756,8 @@
                 <span class="flex items-center gap-1 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-full text-xs text-gray-500">
                   <Users size={11}/> {group.items.length}
                 </span>
-                <button
-                  onclick={() => exportProgram(programTitle, group.items)}
-                  class="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 transition"
-                >
+                <button onclick={() => exportProgram(programTitle, group.items)}
+                  class="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 transition">
                   <FileDown size={12}/> Export
                 </button>
               </div>
@@ -718,11 +768,12 @@
               <div class="hidden md:block overflow-x-auto">
                 <table class="w-full text-sm" style="table-layout: fixed;">
                   <colgroup>
-                    <col style="width: 24%;" />
-                    <col style="width: 32%;" />
-                    <col style="width: 12%;" />
-                    <col style="width: 17%;" />
-                    <col style="width: 20%;" />
+                    <col style="width: 22%;" />
+                    <col style="width: 28%;" />
+                    <col style="width: 10%;" />
+                    <col style="width: 15%;" />
+                    <col style="width: 15%;" />
+                    <col style="width: 10%;" />
                   </colgroup>
                   <thead>
                     <tr class="text-left text-gray-400 text-xs uppercase tracking-wide bg-gray-50/50">
@@ -731,12 +782,13 @@
                       <th class="px-4 py-2.5 font-medium">Age</th>
                       <th class="px-4 py-2.5 font-medium">Contact</th>
                       <th class="px-4 py-2.5 font-medium">Received</th>
+                      <th class="px-4 py-2.5 font-medium"></th>
                     </tr>
                   </thead>
                   <tbody class="divide-y divide-gray-50">
                     {#each group.items as b}
-                      <tr class="hover:bg-blue-50/40 cursor-pointer transition-colors" onclick={() => openProfile(b)}>
-                        <td class="px-4 py-3">
+                      <tr class="hover:bg-blue-50/40 transition-colors">
+                        <td class="px-4 py-3 cursor-pointer" onclick={() => openProfile(b)}>
                           <div class="flex items-center gap-2.5 min-w-0">
                             <div class="w-7 h-7 rounded-full bg-[#0A1F44] flex items-center justify-center text-white text-xs font-bold shrink-0">
                               {b.full_name.charAt(0)}
@@ -744,10 +796,17 @@
                             <span class="font-medium text-gray-900 truncate">{b.full_name}</span>
                           </div>
                         </td>
-                        <td class="px-4 py-3 text-gray-500 truncate">{b.address}</td>
-                        <td class="px-4 py-3 text-gray-600">{b.age || '—'}</td>
-                        <td class="px-4 py-3 text-gray-600 truncate">{b.contact || '—'}</td>
-                        <td class="px-4 py-3 text-gray-500 text-xs">{b.received_at ? fmtDate(b.received_at) : '—'}</td>
+                        <td class="px-4 py-3 text-gray-500 truncate cursor-pointer" onclick={() => openProfile(b)}>{b.address}</td>
+                        <td class="px-4 py-3 text-gray-600 cursor-pointer" onclick={() => openProfile(b)}>{b.age || '—'}</td>
+                        <td class="px-4 py-3 text-gray-600 truncate cursor-pointer" onclick={() => openProfile(b)}>{b.contact || '—'}</td>
+                        <td class="px-4 py-3 text-gray-500 text-xs cursor-pointer" onclick={() => openProfile(b)}>{b.received_at ? fmtDate(b.received_at) : '—'}</td>
+                        <td class="px-4 py-3">
+                          <button onclick={() => confirmDelete(b)}
+                            class="flex items-center justify-center w-7 h-7 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50 transition"
+                            title="Remove beneficiary">
+                            <Trash2 size={13}/>
+                          </button>
+                        </td>
                       </tr>
                     {/each}
                   </tbody>
@@ -757,18 +816,25 @@
               <!-- Mobile Cards -->
               <div class="md:hidden divide-y divide-gray-100">
                 {#each group.items as b}
-                  <button type="button" onclick={() => openProfile(b)}
-                    class="w-full flex items-center gap-3 px-4 py-3 hover:bg-blue-50/40 transition-colors text-left">
-                    <div class="w-8 h-8 rounded-full bg-[#0A1F44] flex items-center justify-center text-white text-xs font-bold shrink-0">
-                      {b.full_name.charAt(0)}
-                    </div>
-                    <div class="flex-1 min-w-0">
-                      <div class="font-medium text-sm text-gray-900 truncate">{b.full_name}</div>
-                      <div class="text-xs text-gray-400 truncate">{b.address}</div>
-                      <div class="text-xs text-gray-400 mt-0.5">Age: {b.age || '—'} · {b.contact || '—'}</div>
-                    </div>
-                    <ChevronRight size={14} class="text-gray-300 shrink-0" />
-                  </button>
+                  <div class="flex items-center gap-3 px-4 py-3 hover:bg-blue-50/40 transition-colors">
+                    <button type="button" onclick={() => openProfile(b)}
+                      class="flex items-center gap-3 flex-1 min-w-0 text-left">
+                      <div class="w-8 h-8 rounded-full bg-[#0A1F44] flex items-center justify-center text-white text-xs font-bold shrink-0">
+                        {b.full_name.charAt(0)}
+                      </div>
+                      <div class="flex-1 min-w-0">
+                        <div class="font-medium text-sm text-gray-900 truncate">{b.full_name}</div>
+                        <div class="text-xs text-gray-400 truncate">{b.address}</div>
+                        <div class="text-xs text-gray-400 mt-0.5">Age: {b.age || '—'} · {b.contact || '—'}</div>
+                      </div>
+                      <ChevronRight size={14} class="text-gray-300 shrink-0" />
+                    </button>
+                    <button onclick={() => confirmDelete(b)}
+                      class="flex items-center justify-center w-7 h-7 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50 transition shrink-0"
+                      title="Remove">
+                      <Trash2 size={13}/>
+                    </button>
+                  </div>
                 {/each}
               </div>
             {/if}
@@ -780,18 +846,12 @@
 
   {:else}
 
-    <!-- ══════════════════════════════════════════════════════════════════════
-         SEARCH / HISTORY TAB — live search habang nagtatype
-         ══════════════════════════════════════════════════════════════════════ -->
+    <!-- ══ SEARCH / HISTORY TAB ════════════════════════════════════════════ -->
     <div class="card">
       <p class="text-sm font-medium text-gray-700 mb-3">Search for a resident to view their complete benefit history</p>
       <div class="relative">
         <Search size={15} class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-        <input
-          bind:value={searchQuery}
-          oninput={onSearchInput}
-          class="input pl-8 w-full"
-        />
+        <input bind:value={searchQuery} oninput={onSearchInput} class="input pl-8 w-full" />
         {#if searchLoading}
           <div class="absolute right-3 top-1/2 -translate-y-1/2">
             <div class="w-4 h-4 border-2 border-gray-200 rounded-full animate-spin" style="border-top-color:#0A1F44;"></div>

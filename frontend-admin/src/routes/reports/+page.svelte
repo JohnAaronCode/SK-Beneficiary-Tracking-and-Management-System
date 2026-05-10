@@ -1,19 +1,24 @@
 <script lang="ts">
-  import Download from 'lucide-svelte/icons/download';
-  import * as XLSX from 'xlsx';
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { apiFetch } from '$lib/api.js';
-  import BarChart2 from 'lucide-svelte/icons/bar-chart-2';
-  import Trophy from 'lucide-svelte/icons/trophy';
-  import AlertTriangle from 'lucide-svelte/icons/alert-triangle';
-  import CheckSquare from 'lucide-svelte/icons/check-square';
-  import CalendarDays from 'lucide-svelte/icons/calendar-days';
-  import TrendingUp from 'lucide-svelte/icons/trending-up';
-  import ChevronLeft from 'lucide-svelte/icons/chevron-left';
-  import ChevronRight from 'lucide-svelte/icons/chevron-right';
+  import * as XLSX from 'xlsx';
+  import { Chart, ArcElement, Tooltip, Legend, PieController, DoughnutController } from 'chart.js';
 
-  interface ProgramStat   { title: string; category: string; beneficiary_count: number; slots: number; }
-  interface MostAssisted  { full_name: string; address: string; program_count: number; }
+  Chart.register(ArcElement, Tooltip, Legend, PieController, DoughnutController);
+
+  import Download      from 'lucide-svelte/icons/download';
+  import BarChart2     from 'lucide-svelte/icons/bar-chart-2';
+  import Trophy        from 'lucide-svelte/icons/trophy';
+  import AlertTriangle from 'lucide-svelte/icons/alert-triangle';
+  import CheckSquare   from 'lucide-svelte/icons/check-square';
+  import CalendarDays  from 'lucide-svelte/icons/calendar-days';
+  import TrendingUp    from 'lucide-svelte/icons/trending-up';
+  import ChevronLeft   from 'lucide-svelte/icons/chevron-left';
+  import ChevronRight  from 'lucide-svelte/icons/chevron-right';
+  import PieChart      from 'lucide-svelte/icons/pie-chart';
+
+  interface ProgramStat       { title: string; category: string; beneficiary_count: number; slots: number; }
+  interface MostAssisted      { full_name: string; address: string; program_count: number; }
   interface RepeatBeneficiary { full_name: string; address: string; times_assisted: number; }
   interface Report {
     summary: { totalPrograms: number; activePrograms: number; pendingApps: number; approvedBeneficiaries: number; rejectedApps: number; };
@@ -38,11 +43,20 @@
   let selectedYear  = $state(new Date().getFullYear());
   let barangayInfo  = $state<BarangayInfo>({});
 
+  // Pie chart
+  let pieCanvas = $state<HTMLCanvasElement | undefined>(undefined);
+  let pieChart: Chart | null = null;
+
+  const PIE_COLORS = [
+    '#0A1F44', '#1e40af', '#0891b2', '#059669', '#d97706',
+    '#dc2626', '#7c3aed', '#db2777', '#65a30d', '#ea580c',
+  ];
+
   const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
-  onMount(async () => {
-    await loadAll();
-  });
+  onMount(async () => { await loadAll(); });
+
+  onDestroy(() => { if (pieChart) pieChart.destroy(); });
 
   async function loadAll() {
     loading = true;
@@ -52,12 +66,65 @@
       apiFetch('/barangay-info'),
     ]);
     loading = false;
+    buildPieChart();
   }
 
   async function changeYear(dir: number) {
     selectedYear += dir;
     monthlyReport = await apiFetch(`/beneficiaries/reports/monthly?year=${selectedYear}`);
   }
+
+  function buildPieChart() {
+    if (!report || !pieCanvas) return;
+
+    const categoryTotals: Record<string, number> = {};
+    for (const p of report.perProgram) {
+      categoryTotals[p.category] = (categoryTotals[p.category] ?? 0) + p.beneficiary_count;
+    }
+    const labels = Object.keys(categoryTotals);
+    const data   = labels.map(l => categoryTotals[l]);
+
+    if (pieChart) { pieChart.destroy(); pieChart = null; }
+
+    pieChart = new Chart(pieCanvas, {
+      type: 'doughnut',
+      data: {
+        labels,
+        datasets: [{
+          data,
+          backgroundColor: PIE_COLORS.slice(0, labels.length),
+          borderWidth: 3,
+          borderColor: '#fff',
+          hoverBorderColor: '#fff',
+          hoverOffset: 6,
+        }],
+      },
+      options: {
+        responsive: true,
+        cutout: '62%',
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: { font: { size: 12 }, padding: 16, usePointStyle: true, pointStyleWidth: 10 },
+          },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => {
+                const total = (ctx.dataset.data as number[]).reduce((a, b) => a + b, 0);
+                const pct   = total > 0 ? Math.round((ctx.parsed / total) * 100) : 0;
+                return ` ${ctx.label}: ${ctx.parsed} (${pct}%)`;
+              },
+            },
+          },
+        },
+      },
+    });
+  }
+
+  // Re-build pie when canvas becomes available
+  $effect(() => {
+    if (pieCanvas && report) buildPieChart();
+  });
 
   let monthGrid = $derived(
     MONTHS.map((name, i) => {
@@ -68,15 +135,48 @@
 
   let maxMonthCount = $derived(Math.max(...(monthGrid.map(m => m.count)), 1));
 
-  function exportReportToExcel() {
-    const wb = XLSX.utils.book_new();
+  // ── Category totals for pie label ────────────────────────────────────────
+  let categoryTotals = $derived<{ label: string; count: number; color: string }[]>((() => {
+    if (!report) return [];
+    const map: Record<string, number> = {};
+    for (const p of report.perProgram) {
+      map[p.category] = (map[p.category] ?? 0) + p.beneficiary_count;
+    }
+    return Object.entries(map).map(([label, count], i) => ({
+      label, count, color: PIE_COLORS[i % PIE_COLORS.length],
+    }));
+  })());
 
-    // ── Header info rows ──────────────────────────────────────────────
-    const brgy   = barangayInfo.barangay_name  ?? 'Barangay';
-    const muni   = barangayInfo.municipality   ?? '';
-    const chair  = barangayInfo.sk_chairperson ?? '';
-    const addr   = barangayInfo.address        ?? '';
-    const now    = new Date().toLocaleDateString('en-PH', { year:'numeric', month:'long', day:'numeric' });
+  // ── Per-program export ────────────────────────────────────────────────────
+  function exportProgramReport(prog: ProgramStat) {
+    const brgy = barangayInfo.barangay_name ?? 'Barangay';
+    const now  = new Date().toLocaleDateString('en-PH', { year:'numeric', month:'long', day:'numeric' });
+    const pct  = prog.slots > 0 ? Math.round(prog.beneficiary_count / prog.slots * 100) : 0;
+
+    const rows = [
+      [`Sangguniang Kabataan — ${brgy}`],
+      [`Report Date: ${now}`],
+      [],
+      ['Program:', prog.title],
+      ['Category:', prog.category],
+      ['Beneficiaries:', prog.beneficiary_count],
+      ['Slots:', `${prog.beneficiary_count} / ${prog.slots} (${pct}% filled)`],
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols'] = [{ wch: 20 }, { wch: 30 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Summary');
+    XLSX.writeFile(wb, `SK_${prog.title.replace(/[^a-z0-9]/gi,'_')}_Report.xlsx`);
+  }
+
+  // ── Full export ───────────────────────────────────────────────────────────
+  function exportReportToExcel() {
+    const wb   = XLSX.utils.book_new();
+    const brgy  = barangayInfo.barangay_name  ?? 'Barangay';
+    const muni  = barangayInfo.municipality   ?? '';
+    const chair = barangayInfo.sk_chairperson ?? '';
+    const addr  = barangayInfo.address        ?? '';
+    const now   = new Date().toLocaleDateString('en-PH', { year:'numeric', month:'long', day:'numeric' });
 
     const headerRows = [
       [`Sangguniang Kabataan — ${brgy}${muni ? ', ' + muni : ''}`],
@@ -86,17 +186,13 @@
       [],
     ];
 
-    // ── Sheet 1: Per Program ──────────────────────────────────────────
     if (report?.perProgram.length) {
       const rows = [
         ...headerRows,
         ['BENEFICIARIES PER PROGRAM'],
         ['Program', 'Category', 'Beneficiaries', 'Slots', '% Filled'],
         ...report.perProgram.map(p => [
-          p.title,
-          p.category,
-          p.beneficiary_count,
-          p.slots,
+          p.title, p.category, p.beneficiary_count, p.slots,
           p.slots > 0 ? Math.round(p.beneficiary_count / p.slots * 100) + '%' : '—',
         ]),
       ];
@@ -105,7 +201,6 @@
       XLSX.utils.book_append_sheet(wb, ws, 'Per Program');
     }
 
-    // ── Sheet 2: Monthly Summary ──────────────────────────────────────
     const monthRows = [
       ...headerRows,
       [`MONTHLY BENEFICIARY DISTRIBUTION — ${selectedYear}`],
@@ -116,7 +211,6 @@
     wsMonth['!cols'] = [{ wch: 18 }, { wch: 15 }, { wch: 18 }];
     XLSX.utils.book_append_sheet(wb, wsMonth, 'Monthly');
 
-    // ── Sheet 3: Most Assisted ────────────────────────────────────────
     if (report?.mostAssisted.length) {
       const rows = [
         ...headerRows,
@@ -129,7 +223,6 @@
       XLSX.utils.book_append_sheet(wb, ws, 'Most Assisted');
     }
 
-    // ── Sheet 4: Repeat Beneficiaries ────────────────────────────────
     if (report?.repeatBeneficiaries.length) {
       const rows = [
         ...headerRows,
@@ -161,8 +254,7 @@
       {/if}
     </div>
     {#if report}
-      <button
-        onclick={exportReportToExcel}
+      <button onclick={exportReportToExcel}
         class="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 transition">
         <Download size={15}/> Export Full Report
       </button>
@@ -183,18 +275,14 @@
           <CalendarDays size={16} style="color:#0A1F44;" /> Monthly Beneficiary Distribution
         </h2>
         <div class="flex items-center gap-2">
-          <button
-            onclick={() => changeYear(-1)}
-            class="p-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 transition text-gray-500"
-          >
+          <button onclick={() => changeYear(-1)}
+            class="p-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 transition text-gray-500">
             <ChevronLeft size={15} />
           </button>
           <span class="text-sm font-semibold text-gray-700 w-14 text-center">{selectedYear}</span>
-          <button
-            onclick={() => changeYear(1)}
+          <button onclick={() => changeYear(1)}
             class="p-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 transition text-gray-500"
-            disabled={selectedYear >= new Date().getFullYear()}
-          >
+            disabled={selectedYear >= new Date().getFullYear()}>
             <ChevronRight size={15} />
           </button>
         </div>
@@ -213,8 +301,7 @@
                 {#if m.count > 0}
                   <div
                     class="w-full rounded-t-md transition-all duration-300 relative group cursor-default"
-                    style="height: {Math.max(4, Math.round(m.count / maxMonthCount * 100))}%; background:#0A1F44;"
-                  >
+                    style="height: {Math.max(4, Math.round(m.count / maxMonthCount * 100))}%; background:#0A1F44;">
                     <div class="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-[10px] px-2 py-0.5 rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition z-10">
                       {m.count} beneficiar{m.count === 1 ? 'y' : 'ies'}
                     </div>
@@ -241,9 +328,7 @@
               {#each monthGrid.filter(m => m.count > 0) as m}
                 <tr class="hover:bg-gray-50">
                   <td class="py-2 font-medium">{m.name} {selectedYear}</td>
-                  <td class="py-2 text-right">
-                    <span class="font-semibold" style="color:#0A1F44;">{m.count}</span>
-                  </td>
+                  <td class="py-2 text-right"><span class="font-semibold" style="color:#0A1F44;">{m.count}</span></td>
                   <td class="py-2 text-right text-gray-500">{m.programs}</td>
                 </tr>
               {/each}
@@ -272,9 +357,7 @@
               {#each monthlyReport.yearly as y}
                 <tr class="hover:bg-gray-50">
                   <td class="py-2.5 font-semibold">{y.year}</td>
-                  <td class="py-2.5 text-right">
-                    <span class="font-bold" style="color:#0A1F44;">{y.beneficiary_count}</span>
-                  </td>
+                  <td class="py-2.5 text-right"><span class="font-bold" style="color:#0A1F44;">{y.beneficiary_count}</span></td>
                   <td class="py-2.5 text-right text-gray-500">{y.programs_count}</td>
                 </tr>
               {/each}
@@ -301,7 +384,14 @@
               <div>
                 <div class="flex justify-between text-sm mb-1">
                   <span class="font-medium truncate flex-1 mr-2">{p.title}</span>
-                  <span class="text-gray-500 shrink-0">{p.beneficiary_count} / {p.slots}</span>
+                  <div class="flex items-center gap-2 shrink-0">
+                    <span class="text-gray-500">{p.beneficiary_count} / {p.slots}</span>
+                    <button
+                      onclick={() => exportProgramReport(p)}
+                      class="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 transition">
+                      <Download size={10}/> Export
+                    </button>
+                  </div>
                 </div>
                 <div class="h-2 bg-gray-100 rounded-full overflow-hidden">
                   <div class="h-full rounded-full" style="width:{pct}%; background:#0A1F44;"></div>
@@ -311,6 +401,29 @@
                 </div>
               </div>
             {/each}
+          </div>
+        {/if}
+      </div>
+
+      <!-- Pie chart — Beneficiaries by Category -->
+      <div class="card">
+        <h2 class="font-semibold text-gray-800 mb-4 flex items-center gap-2">
+          <PieChart size={16} style="color:#0A1F44;" /> Beneficiaries by Category
+        </h2>
+        {#if report.perProgram.length === 0 || categoryTotals.every(c => c.count === 0)}
+          <div class="text-center py-10 text-gray-400">
+            <PieChart size={28} class="mx-auto mb-2 text-gray-300"/>
+            <p class="text-sm">No data available yet</p>
+          </div>
+        {:else}
+          <!-- Total badge -->
+          <div class="flex items-center justify-end mb-3">
+            <span class="text-xs text-gray-400">
+              Total: <strong class="text-gray-700">{categoryTotals.reduce((a, c) => a + c.count, 0)}</strong> beneficiar{categoryTotals.reduce((a, c) => a + c.count, 0) === 1 ? 'y' : 'ies'}
+            </span>
+          </div>
+          <div class="flex items-center justify-center" style="max-height: 260px;">
+            <canvas bind:this={pieCanvas} style="max-height: 250px; max-width: 100%;"></canvas>
           </div>
         {/if}
       </div>
@@ -386,6 +499,7 @@
           </table>
         {/if}
       </div>
+
     </div>
   {/if}
 </div>
