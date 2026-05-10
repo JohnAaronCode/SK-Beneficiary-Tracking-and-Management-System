@@ -56,7 +56,9 @@
     requirements: '', start_date: '', end_date: '',
   });
 
-  // Load programs and categories on mount
+  let search = $state('');
+  let selectedCategory = $state('all');
+
   onMount(async () => { await loadData(); });
 
   async function loadData() {
@@ -73,14 +75,12 @@
     }
   }
 
-  // Open the form in create mode with blank fields
   function openCreate() {
     form = { title: '', description: '', category: '', slots: '', requirements: '', start_date: '', end_date: '' };
     editMode = false;
     showForm = true;
   }
 
-  // Open the form in edit mode pre-filled with the selected program's data
   function openEdit(p: Program) {
     form = { ...p, slots: String(p.slots) };
     editMode = true;
@@ -88,7 +88,6 @@
     showForm = true;
   }
 
-  // Create or update a program depending on editMode
   async function submitForm() {
     try {
       if (editMode && selectedProgram != null) {
@@ -106,7 +105,6 @@
     }
   }
 
-  // Update a program's status (open / closed / completed / draft)
   async function setStatus(id: string | number, status: string) {
     try {
       await apiFetch(`/programs/${id}/status`, { method: 'PATCH', body: { status } });
@@ -116,7 +114,6 @@
     }
   }
 
-  // Delete a program after confirmation
   async function deleteProgram(id: string | number) {
     if (!confirm('Are you sure you want to delete this program? This cannot be undone.')) return;
     try {
@@ -127,18 +124,33 @@
     }
   }
 
-  // Badge styles per program status
   const statusConfig: Record<ProgramStatus, { label: string; classes: string }> = {
     open:      { label: 'Open',      classes: 'bg-emerald-100 text-emerald-700 border border-emerald-200' },
     closed:    { label: 'Closed',    classes: 'bg-slate-100 text-slate-500 border border-slate-200' },
     draft:     { label: 'Draft',     classes: 'bg-amber-100 text-amber-700 border border-amber-200' },
     completed: { label: 'Completed', classes: 'bg-blue-100 text-blue-700 border border-blue-200' },
   };
+
+  function isFull(p: Program) {
+    return p.slots_used >= p.slots;
+  }
+
+  let filteredPrograms = $derived(
+    programs.filter((p) => {
+      const matchSearch =
+        p.title.toLowerCase().includes(search.toLowerCase()) ||
+        p.description.toLowerCase().includes(search.toLowerCase());
+
+      const matchCategory =
+        selectedCategory === 'all' || p.category === selectedCategory;
+
+      return matchSearch && matchCategory;
+    })
+  );
 </script>
 
 <div class="p-6 space-y-5">
 
-  <!-- Page Header -->
   <div class="flex items-center justify-between">
     <div>
       <h1 class="text-2xl font-bold text-gray-900">Programs</h1>
@@ -153,7 +165,6 @@
     </button>
   </div>
 
-  <!-- Alert Messages -->
   {#if error}
     <div class="bg-red-50 border border-red-200 text-red-700 p-3 rounded-xl text-sm">{error}</div>
   {/if}
@@ -161,12 +172,32 @@
     <div class="bg-emerald-50 border border-emerald-200 text-emerald-700 p-3 rounded-xl text-sm">{success}</div>
   {/if}
 
-  <!-- ── CREATE / EDIT MODAL ─────────────────────────────────────────────── -->
+  <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+    <div class="flex-1">
+      <input
+        bind:value={search}
+        placeholder="Search program..."
+        class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-800 placeholder:text-slate-300 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50 transition bg-white"
+      />
+    </div>
+
+    <div class="w-full md:w-64">
+      <select
+        bind:value={selectedCategory}
+        class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50 transition bg-white appearance-none"
+      >
+        <option value="all">All Categories</option>
+        {#each categories as cat}
+          <option value={cat.name}>{cat.name}</option>
+        {/each}
+      </select>
+    </div>
+  </div>
+
   {#if showForm}
     <div class="fixed inset-0 z-50 flex items-center justify-center p-4" style="background: rgba(10,31,68,0.5);">
       <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
 
-        <!-- Modal Header -->
         <div class="flex items-center justify-between px-6 py-5 border-b border-slate-100">
           <div>
             <h2 class="text-base font-bold text-slate-900">
@@ -184,10 +215,8 @@
           </button>
         </div>
 
-        <!-- Modal Form -->
         <form onsubmit={(e) => { e.preventDefault(); submitForm(); }} class="px-6 py-5 space-y-4">
 
-          <!-- Program Title -->
           <div class="space-y-1.5">
             <label class="flex items-center gap-1.5 text-xs font-semibold text-slate-600 uppercase tracking-wide" for="title">
               <Hash size={11} /> Program Title <span class="text-red-400">*</span>
@@ -201,7 +230,6 @@
             />
           </div>
 
-          <!-- Category -->
           <div class="space-y-1.5">
             <label class="flex items-center gap-1.5 text-xs font-semibold text-slate-600 uppercase tracking-wide" for="category">
               <Tag size={11} /> Category <span class="text-red-400">*</span>
@@ -219,7 +247,6 @@
             </select>
           </div>
 
-          <!-- Number of Slots -->
           <div class="space-y-1.5">
             <label class="flex items-center gap-1.5 text-xs font-semibold text-slate-600 uppercase tracking-wide" for="slots">
               <Users size={11} /> Number of Slots <span class="text-red-400">*</span>
@@ -235,7 +262,6 @@
             />
           </div>
 
-          <!-- Description -->
           <div class="space-y-1.5">
             <label class="flex items-center gap-1.5 text-xs font-semibold text-slate-600 uppercase tracking-wide" for="desc">
               <AlignLeft size={11} /> Description
@@ -249,7 +275,6 @@
             ></textarea>
           </div>
 
-          <!-- Requirements -->
           <div class="space-y-1.5">
             <label class="flex items-center gap-1.5 text-xs font-semibold text-slate-600 uppercase tracking-wide" for="req">
               <ListChecks size={11} /> Requirements <span class="text-red-400">*</span>
@@ -264,7 +289,6 @@
             ></textarea>
           </div>
 
-          <!-- Date Range -->
           <div class="grid grid-cols-2 gap-3">
             <div class="space-y-1.5">
               <label class="flex items-center gap-1.5 text-xs font-semibold text-slate-600 uppercase tracking-wide" for="start">
@@ -290,7 +314,6 @@
             </div>
           </div>
 
-          <!-- Form Actions -->
           <div class="flex gap-2 pt-1">
             <button
               type="submit"
@@ -313,37 +336,37 @@
     </div>
   {/if}
 
- <!-- ── PROGRAM LIST ─────────────────────────────────────────────────────── -->
 {#if loading}
   <div class="flex items-center gap-2 text-slate-400 text-sm py-12">
     <div class="w-4 h-4 border-2 border-slate-200 border-t-blue-500 rounded-full animate-spin"></div>
     Loading programs...
   </div>
 
-{:else if programs.length === 0}
+{:else if filteredPrograms.length === 0}
   <div class="bg-white border border-slate-200 rounded-2xl text-center py-16 shadow-sm">
     <FolderOpen size={36} class="mx-auto mb-3 text-slate-300" />
-    <p class="text-slate-400 font-medium text-sm">No programs yet.</p>
-    <p class="text-slate-300 text-xs mt-1">Click "New Program" to get started.</p>
+    <p class="text-slate-400 font-medium text-sm">No programs found.</p>
+    <p class="text-slate-300 text-xs mt-1">Try changing search or category filter.</p>
   </div>
 
 {:else}
   <div class="grid gap-3">
-    {#each programs as p}
+    {#each filteredPrograms as p}
       {@const cfg = statusConfig[p.status] ?? statusConfig.closed}
       <div class="bg-white border border-slate-200 rounded-2xl px-5 py-4 hover:shadow-md hover:border-slate-300 transition-all">
         <div class="flex items-start justify-between gap-4">
 
-          <!-- Program Info -->
           <div class="flex-1 min-w-0">
             <div class="flex items-center gap-2 flex-wrap mb-1">
               <h3 class="font-semibold text-slate-900 text-sm">{p.title}</h3>
               <span class="text-[11px] font-medium px-2 py-0.5 rounded-full {cfg.classes}">{cfg.label}</span>
               <span class="text-[11px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full border border-slate-200">{p.category}</span>
+              {#if isFull(p)}
+                <span class="text-[11px] bg-red-50 text-red-600 px-2 py-0.5 rounded-full border border-red-200">Slots Full</span>
+              {/if}
             </div>
             <p class="text-slate-400 text-xs mb-3 truncate">{p.description || 'No description provided'}</p>
             
-            <!-- Slot and application summary -->
             <div class="flex gap-4 text-xs">
               <span class="text-slate-400">Slots: <strong class="text-slate-700">{p.slots_used}/{p.slots}</strong></span>
               <span class="text-slate-400">Pending: <strong class="text-amber-600">{p.pending_count}</strong></span>
@@ -352,14 +375,13 @@
 
           </div>
 
-          <!-- Program Actions -->
           <div class="flex gap-1.5 shrink-0 flex-wrap justify-end items-center">
 
-            <!-- Toggle open/closed based on current status -->
             {#if p.status === 'draft' || p.status === 'closed'}
               <button
                 onclick={() => setStatus(p.id, 'open')}
-                class="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 transition"
+                class="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 transition disabled:opacity-60 disabled:cursor-not-allowed"
+                disabled={isFull(p)}
               >
                 <ToggleLeft size={13} /> Open
               </button>
@@ -373,7 +395,6 @@
               </button>
             {/if}
 
-            <!-- View applicants for this program -->
             <a
               href="/applications?program={p.id}"
               class="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-600 bg-slate-50 border border-slate-200 hover:bg-slate-100 transition"
@@ -381,7 +402,6 @@
               <ClipboardList size={12} /> Applicants
             </a>
 
-            <!-- Edit program -->
             <button
               onclick={() => openEdit(p)}
               class="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-blue-600 bg-blue-50 border border-blue-200 hover:bg-blue-100 transition"
@@ -389,7 +409,6 @@
               <Pencil size={12} /> Edit
             </button>
 
-            <!-- Delete program -->
             <button
               onclick={() => deleteProgram(p.id)}
               class="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-red-600 bg-red-50 border border-red-200 hover:bg-red-100 transition"
