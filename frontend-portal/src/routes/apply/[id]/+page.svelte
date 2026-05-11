@@ -31,6 +31,8 @@
 	let success    = $state(false);
 	let attachedFiles = $state<File[]>([]);
 
+	let showConfirm = $state(false);
+
 	let form = $state({
 		full_name:               '',
 		address:                 '',
@@ -50,8 +52,13 @@
 			return;
 		}
 		try {
-			program           = await apiFetch(`/programs/${page.params.id}`);
-			form.full_name    = $user?.full_name ?? '';
+			program = await apiFetch(`/programs/${page.params.id}`);
+
+			form.full_name = $user?.full_name ?? '';
+			form.contact = $user?.contact ?? '';
+			form.barangay = $user?.barangay ?? '';
+			form.address = $user?.address ?? '';
+
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Error loading program';
 		} finally {
@@ -87,7 +94,7 @@
 		return file.type.startsWith('image/');
 	}
 
-	async function submitApplication() {
+	function openConfirm() {
 		error = '';
 
 		if (!form.full_name.trim())  { error = 'Full name is required.'; return; }
@@ -101,7 +108,13 @@
 			return;
 		}
 
+		showConfirm = true;
+	}
+
+	async function submitApplication() {
+		error = '';
 		submitting = true;
+
 		try {
 			// Step 1: Submit application data — get back the new application ID
 			const result = await apiFetch('/applications', {
@@ -143,6 +156,7 @@
 			error = e instanceof Error ? e.message : 'Submission failed. Please try again.';
 		} finally {
 			submitting = false;
+			showConfirm = false;
 		}
 	}
 </script>
@@ -189,7 +203,6 @@
 		</div>
 
 	{:else}
-		<!-- Program Info Banner -->
 		{#if program}
 			<div
 				class="mb-5 rounded-xl border p-4"
@@ -220,17 +233,12 @@
 				Please fill out all fields correctly and completely.
 			</p>
 
-			<form
-				onsubmit={(e) => { e.preventDefault(); submitApplication(); }}
-				class="space-y-4"
-			>
-				<!-- Full Name -->
+			<form onsubmit={(e) => { e.preventDefault(); openConfirm(); }} class="space-y-4">
 				<div>
 					<label class="label" for="fn">Full Name *</label>
 					<input id="fn" bind:value={form.full_name} class="input" required />
 				</div>
 
-				<!-- Age + Contact -->
 				<div class="grid grid-cols-2 gap-3">
 					<div>
 						<label class="label" for="age">Age *</label>
@@ -258,21 +266,19 @@
 					</div>
 				</div>
 
-				<!-- Barangay -->
 				<div>
 					<label class="label" for="barangay">Barangay *</label>
 					<input id="barangay" bind:value={form.barangay} class="input" required />
 				</div>
 
-				<!-- Address -->
 				<div>
 					<label class="label" for="address">Complete Address *</label>
 					<input id="address" bind:value={form.address} class="input" required />
 				</div>
 
-				<!-- Requirements -->
 				<div>
 					<label class="label" for="req">Requirements *</label>
+
 					<div
 						class="overflow-hidden rounded-lg border transition focus-within:border-slate-400"
 						class:border-slate-200={!error || requirementsValid}
@@ -288,11 +294,12 @@
 
 						<div class="border-t border-slate-100"></div>
 
-						<!-- Attached files list -->
 						{#if attachedFiles.length > 0}
 							<ul class="flex flex-col gap-1 px-3 py-2">
 								{#each attachedFiles as file, i}
-									<li class="flex items-center justify-between rounded-md bg-slate-50 px-2.5 py-1.5">
+									<li
+										class="flex items-center justify-between rounded-md bg-slate-50 px-2.5 py-1.5"
+									>
 										<div class="flex min-w-0 items-center gap-2">
 											{#if isImage(file)}
 												<ImageIcon size={13} class="shrink-0 text-slate-400" />
@@ -315,7 +322,6 @@
 							<div class="border-t border-slate-100"></div>
 						{/if}
 
-						<!-- Attach file button -->
 						<div class="flex items-center px-3 py-2">
 							<label
 								class="flex cursor-pointer items-center gap-1.5 text-xs text-slate-400 transition hover:text-slate-600"
@@ -365,15 +371,65 @@
 						}}
 						onmouseleave={(e) => ((e.currentTarget as HTMLElement).style.background = '#0A1F44')}
 					>
-						{#if submitting}
-							<Loader2 class="h-4 w-4 animate-spin" />
-							Submitting...
-						{:else}
-							Submit Application
-						{/if}
+						Submit Application
 					</button>
+
+					<a
+						href="/"
+						class="flex items-center gap-1.5 rounded-lg border border-slate-200 px-4 py-2.5 text-sm text-slate-600 transition hover:border-slate-300"
+					>
+						<ArrowLeft class="h-4 w-4" />
+						Back
+					</a>
 				</div>
 			</form>
 		</div>
+
+		{#if showConfirm}
+			<div class="fixed inset-0 z-50 flex items-center justify-center p-4" style="background: rgba(10,31,68,0.5);">
+				<div class="w-full max-w-md rounded-2xl bg-white shadow-2xl border border-slate-200">
+					<div class="px-6 py-5 border-b border-slate-100">
+						<h2 class="text-base font-bold text-slate-900">Confirm Submission</h2>
+						<p class="text-xs text-slate-400 mt-1">
+							Please confirm before submitting your application.
+						</p>
+					</div>
+
+					<div class="px-6 py-5 space-y-2 text-sm text-slate-600">
+						<div><span class="text-slate-400 text-xs">Full Name</span><br />{form.full_name}</div>
+						<div><span class="text-slate-400 text-xs">Age</span><br />{form.age}</div>
+						<div><span class="text-slate-400 text-xs">Contact</span><br />{form.contact}</div>
+						<div><span class="text-slate-400 text-xs">Barangay</span><br />{form.barangay}</div>
+						<div><span class="text-slate-400 text-xs">Address</span><br />{form.address}</div>
+					</div>
+
+					<div class="px-6 pb-5 flex gap-2">
+						<button
+							type="button"
+							onclick={() => submitApplication()}
+							class="flex-1 rounded-xl py-2.5 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed"
+							style="background: #0A1F44;"
+							disabled={submitting}
+						>
+							{#if submitting}
+								<Loader2 class="h-4 w-4 animate-spin inline-block mr-1" />
+								Submitting...
+							{:else}
+								Confirm
+							{/if}
+						</button>
+
+						<button
+							type="button"
+							onclick={() => showConfirm = false}
+							class="flex-1 rounded-xl py-2.5 text-sm font-medium text-slate-600 border border-slate-200 hover:bg-slate-50 transition"
+							disabled={submitting}
+						>
+							Cancel
+						</button>
+					</div>
+				</div>
+			</div>
+		{/if}
 	{/if}
 </div>

@@ -37,7 +37,7 @@ export function logout() {
   localStorage.removeItem('sk_user');
 }
 
-export const API = 'http://localhost:3000/api';
+export const API = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
 export async function apiFetch(path: string, options: FetchOptions = {}) {
   const t = get(token);
@@ -60,7 +60,7 @@ export async function apiFetch(path: string, options: FetchOptions = {}) {
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: 'Network error' }));
-    throw new Error(err.error || 'Request failed');
+    throw new Error(err.error || `Request failed (${res.status})`);
   }
   return res.json();
 }

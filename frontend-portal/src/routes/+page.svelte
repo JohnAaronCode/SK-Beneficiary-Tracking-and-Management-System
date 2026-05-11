@@ -131,6 +131,7 @@
 									{program.description || 'Walang detalye.'}
 								</p>
 
+								<!-- End Date -->
 								<div class="flex flex-wrap gap-4 text-xs text-slate-500">
 									<span class="flex items-center gap-1">
 										<Users class="h-3.5 w-3.5" />
@@ -140,12 +141,25 @@
 										</strong>
 									</span>
 
-									{#if program.start_date}
-										<span class="flex items-center gap-1">
-											<CalendarDays class="h-3.5 w-3.5" />
-											{new Date(program.start_date).toLocaleDateString('fil-PH')}
-										</span>
-									{/if}
+									<span class="flex items-center gap-1">
+										<CalendarDays class="h-3.5 w-3.5" />
+										Start:
+										<strong class="ml-0.5 text-slate-700">
+											{program.start_date
+												? new Date(program.start_date).toLocaleDateString()
+												: 'N/A'}
+										</strong>
+									</span>
+
+									<span class="flex items-center gap-1">
+										<CalendarDays class="h-3.5 w-3.5" />
+										End:
+										<strong class="ml-0.5 text-slate-700">
+											{program.end_date
+												? new Date(program.end_date).toLocaleDateString()
+												: 'N/A'}
+										</strong>
+									</span>
 								</div>
 
 								{#if program.requirements}
@@ -158,7 +172,6 @@
 							<div class="shrink-0">
 								{#if $user}
 									{#if hasApplied(program.id)}
-										
 										<button
 											class="flex items-center gap-1.5 rounded-lg bg-slate-400 px-4 py-2 text-sm font-medium whitespace-nowrap text-white opacity-70 cursor-not-allowed"
 											disabled

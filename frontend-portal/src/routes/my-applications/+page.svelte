@@ -17,6 +17,7 @@
 	type AppStatus = 'pending' | 'approved' | 'rejected' | 'waitlist';
 
 	interface Application {
+		id?: string | number;
 		program_title: string;
 		program_category: string;
 		full_name: string;
@@ -32,18 +33,83 @@
 	let loading      = $state(true);
 	let error        = $state('');
 
+	let lastStatuses = $state<Record<string, AppStatus>>({});
+	let toastMessage = $state('');
+	let toastType = $state<'success' | 'info' | 'error'>('info');
+	let toastVisible = $state(false);
+
+	function showToast(message: string, type: 'success' | 'info' | 'error' = 'info') {
+		toastMessage = message;
+		toastType = type;
+		toastVisible = true;
+		setTimeout(() => {
+			toastVisible = false;
+		}, 3000);
+	}
+
+	function getKey(app: Application, index: number) {
+		if (app.id !== undefined && app.id !== null) return String(app.id);
+		return `${app.program_title}-${app.created_at}-${index}`;
+	}
+
+	async function loadApplications(initial = false) {
+		try {
+			const data: Application[] = await apiFetch('/applications/my');
+			applications = data;
+
+			if (initial) {
+				const map: Record<string, AppStatus> = {};
+				data.forEach((app, i) => {
+					map[getKey(app, i)] = app.status;
+				});
+				lastStatuses = map;
+				return;
+			}
+
+			data.forEach((app, i) => {
+				const key = getKey(app, i);
+				const prev = lastStatuses[key];
+
+				if (prev && prev !== app.status) {
+					if (app.status === 'approved') {
+						showToast(`Your application for "${app.program_title}" was approved!`, 'success');
+					} else if (app.status === 'rejected') {
+						showToast(`Your application for "${app.program_title}" was rejected.`, 'error');
+					} else if (app.status === 'waitlist') {
+						showToast(`Your application for "${app.program_title}" is now waitlisted.`, 'info');
+					} else {
+						showToast(`Your application for "${app.program_title}" status changed.`, 'info');
+					}
+				}
+
+				lastStatuses[key] = app.status;
+			});
+		} catch (e) {
+			error = e instanceof Error ? e.message : 'Error';
+		}
+	}
+
 	onMount(async () => {
 		if (!$user) {
 			goto('/login');
 			return;
 		}
-		try {
-			applications = await apiFetch('/applications/my');
-		} catch (e) {
-			error = e instanceof Error ? e.message : 'Error';
-		} finally {
-			loading = false;
+
+		loading = true;
+		await loadApplications(true);
+		loading = false;
+
+		const params = new URLSearchParams(window.location.search);
+		if (params.get('submitted') === '1') {
+			showToast('Application submitted successfully!', 'success');
+			window.history.replaceState({}, '', window.location.pathname);
 		}
+
+		const interval = setInterval(() => {
+			loadApplications(false);
+		}, 7000);
+
+		return () => clearInterval(interval);
 	});
 
 	const statusBadge: Record<AppStatus, string> = {
@@ -65,7 +131,7 @@
 	<div class="flex items-center justify-between">
 		<div>
 			<h1 class="text-2xl font-bold text-slate-900">My Applications</h1>
-			<p class="text-sm text-slate-500">Status of all your applications</p>
+			<p class="text-sm text-slate-500">History of all your applications</p>
 		</div>
 		<a href="/"
 			class="flex items-center gap-1.5 rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-600 transition hover:border-slate-300">
@@ -73,6 +139,25 @@
 			Programs
 		</a>
 	</div>
+
+	{#if toastVisible}
+		<div class="fixed right-5 top-5 z-50">
+			<div
+				class="rounded-xl border px-4 py-3 text-sm shadow-lg"
+				class:border-emerald-200={toastType === 'success'}
+				class:bg-emerald-50={toastType === 'success'}
+				class:text-emerald-700={toastType === 'success'}
+				class:border-red-200={toastType === 'error'}
+				class:bg-red-50={toastType === 'error'}
+				class:text-red-700={toastType === 'error'}
+				class:border-slate-200={toastType === 'info'}
+				class:bg-white={toastType === 'info'}
+				class:text-slate-700={toastType === 'info'}
+			>
+				{toastMessage}
+			</div>
+		</div>
+	{/if}
 
 	{#if loading}
 		<div class="flex items-center justify-center gap-2 py-16 text-sm text-slate-400">
@@ -103,11 +188,10 @@
 
 	{:else}
 		<div class="grid gap-4">
-			{#each applications as app}
-				<div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md
-					{app.status === 'rejected' ? 'border-red-100' : ''}
-					{app.status === 'approved' ? 'border-emerald-100' : ''}">
-
+			{#each applications as app, i}
+				<div
+					class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md"
+				>
 					<div class="flex items-start justify-between gap-4">
 						<div class="min-w-0 flex-1">
 							<h3 class="font-semibold text-slate-900">{app.program_title}</h3>
@@ -158,7 +242,6 @@
 							{/if}
 						</div>
 
-						<!-- Status Badge -->
 						<div class="shrink-0 text-right">
 							<span class="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium {statusBadge[app.status]}">
 								{#if app.status === 'pending'}
