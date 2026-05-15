@@ -21,7 +21,12 @@ app.use(cors({
     'http://localhost:5173',
     'http://localhost:5174',
     'http://localhost:4173',
+    'https://sk-admin-three.vercel.app',
+    'https://sk-portal-three.vercel.app',
   ],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  maxAge: 86400,
 }));
 app.use(express.json());
 app.use('/uploads', express.static(uploadsDir));
