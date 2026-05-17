@@ -1,6 +1,6 @@
 import { writable, get } from 'svelte/store';
 
-/** @typedef {{ id: number, full_name: string, email: string, role: string }} UserData */
+/** @typedef {{ id: number, full_name: string, email: string, role: string, contact?: string, barangay?: string, address?: string }} UserData */
 
 /** @type {import('svelte/store').Writable<UserData | null>} */
 export const user = writable(null);

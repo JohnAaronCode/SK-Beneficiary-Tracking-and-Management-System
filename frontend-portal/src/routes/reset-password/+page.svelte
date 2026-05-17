@@ -96,7 +96,7 @@
           </div>
           <p class="text-white font-semibold text-sm mb-2">Password Reset Successful!</p>
           <p class="text-white/40 text-xs leading-relaxed mb-4">
-            Your password has been reset. You will be redirected to the login page in 3 seconds.
+            Your password has been reset.
           </p>
           <a href="/login" class="text-xs underline" style="color: rgba(255,255,255,0.5);">
             Go to Login →
